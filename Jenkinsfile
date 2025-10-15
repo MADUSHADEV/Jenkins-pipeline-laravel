@@ -34,14 +34,16 @@ pipeline {
         label 'laravel'
     }
 
-    triggers {
-        githubPush()
+    environment {
+        DB_CONNECTION = 'sqlite'
+        DB_DATABASE = 'database/database.sqlite'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/MADUSHADEV/Jenkins-pipeline-laravel.git'
+                echo 'Checking out source code from branch'
+                checkout scm
             }
         }
         stage('Prepare Laravel Environment') {
@@ -74,6 +76,26 @@ pipeline {
 
                 echo 'Running tests and generating JUnit report...'
                 sh 'php artisan test --log-junit test-results.xml'
+            }
+        }
+
+        stage('Deploy to Development') {
+            when {
+                branch 'development'
+            }
+            steps {
+                echo 'Deploying to Development Server...'
+            // Add your deployment commands here
+            }
+        }
+
+        stage('Deploy to Staging') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Deploying to Staging Server...'
+            // Add your deployment commands here
             }
         }
     }
