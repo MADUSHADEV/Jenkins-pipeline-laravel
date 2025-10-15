@@ -31,7 +31,9 @@ class HelloWorldController extends Controller
     {
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email'
+            'email' => 'required|email',
+            'phone' => 'nullable|string|max:20',
+            'message' => 'nullable|string'
         ]);
         
         return response()->json([
