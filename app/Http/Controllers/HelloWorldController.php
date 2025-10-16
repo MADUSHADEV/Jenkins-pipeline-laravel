@@ -21,7 +21,7 @@ class HelloWorldController extends Controller
             'id' => $id,
             'name' => 'Sample User ' . $id,
             'email' => 'user' . $id . '@example.com',
-            'phone' => '123-456-7890',
+            'phone' => '123-456-4570',
             'message' => 'This is a sample message for user ' . $id,
             'created_at' => now()->subDays(rand(1, 30))
         ];
