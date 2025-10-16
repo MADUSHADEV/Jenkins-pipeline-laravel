@@ -108,7 +108,6 @@ pipeline {
                         echo 'Deploying to Production Server...'
                 } else {
                         echo 'Skipping Production deployment. Not a tagged build on main branch.'
-                        currentBuild.result = 'ABORTED'
                     }
                 }
             }
