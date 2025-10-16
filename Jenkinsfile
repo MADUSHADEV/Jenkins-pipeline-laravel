@@ -101,8 +101,10 @@ pipeline {
 
         stage('Deploy to Production') {
             when {
-                branch 'main'
-                tag 'v*.*.*'
+                allOf {
+                    branch 'main'
+                    tag 'v*.*.*'
+                }
             }
             steps {
                 input 'Deploy to Production?'
