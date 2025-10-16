@@ -101,16 +101,12 @@ pipeline {
         }
 
         stage('Deploy to Production') {
+            when {
+                tag 'v*.*.*'
+            }
             steps {
-                script {
-                    if (env.BRANCH_NAME == "${MAIN_BRANCH_NAME}" && env.TAG_NAME?.startsWith('v')) {
-                        input 'Deploy to Production?'
-                        echo 'Deploying to Production Server...'
-                } else {
-                        echo 'Skipping Production deployment. Not a tagged build on main branch.'
-                        currentBuild.result = 'ABORTED'
-                    }
-                }
+                input 'Deploy to Production?'
+                echo 'Deploying to the Production server...'
             }
         }
     }
