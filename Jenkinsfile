@@ -98,6 +98,17 @@ pipeline {
             // Add your deployment commands here
             }
         }
+
+        stage('Deploy to Production') {
+            when {
+                tag 'v*.*.*'
+            }
+            steps {
+                input 'Deploy to Production?'
+                echo 'Deploying to Production Server...'
+            // Add your deployment commands here
+            }
+        }
     }
     post {
         always {
