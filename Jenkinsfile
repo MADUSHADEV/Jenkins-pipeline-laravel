@@ -37,6 +37,7 @@ pipeline {
     environment {
         DB_CONNECTION = 'sqlite'
         DB_DATABASE = 'database/database.sqlite'
+        MAIN_BRANCH_NAME = 'main'
     }
 
     stages {
@@ -91,7 +92,7 @@ pipeline {
 
         stage('Deploy to Staging') {
             when {
-                branch 'main'
+                branch "${MAIN_BRANCH_NAME}"
             }
             steps {
                 echo 'Deploying to Staging Server...'
@@ -100,16 +101,14 @@ pipeline {
         }
 
         stage('Deploy to Production') {
-            when {
-                allOf {
-                    branch 'main'
-                    tag 'v*.*.*'
+            script {
+                if (env.BRANCH_NAME == "${MAIN_BRANCH_NAME}" && env.TAG_NAME?.startsWith('v')) {
+                    input 'Deploy to Production?'
+                    echo 'Deploying to Production Server...'
+                } else {
+                    echo 'Skipping Production deployment. Not a tagged build on main branch.'
+                    currentBuild.result = 'ABORTED'
                 }
-            }
-            steps {
-                input 'Deploy to Production?'
-                echo 'Deploying to Production Server...'
-            // Add your deployment commands here
             }
         }
     }
