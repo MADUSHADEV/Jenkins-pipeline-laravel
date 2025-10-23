@@ -59,6 +59,17 @@ pipeline {
                 sh 'php artisan key:generate'
             }
         }
+
+        stage('code quality check') {
+            steps {
+                echo 'Running Laravel Pint...'
+                sh './vendor/bin/pint --test'
+
+                echo 'Running ESLint...'
+                sh 'npm run lint'
+            }
+        }
+
         stage('Build frontend') {
             steps {
                 echo 'Installing Node.js dependencies and building frontend...'
