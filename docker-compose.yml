@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Laravel Application Container
+  app:
+    # Replace with your actual image name from Docker Hub or ACR
+    image: madushadev/alg-30-buslinker:latest
+    container_name: laravel_app_staging
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      # Mount storage and .env from host for persistence
+      - ./storage:/var/www/storage
+      - ./.env:/var/www/.env
+    networks:
+      - app-network
+
+  # Nginx Web Server Container
+  web:
+    image: nginx:alpine
+    container_name: laravel_web_staging
+    restart: unless-stopped
+    ports:
+      - "80:80" # Map VM port 80 to container port 80
+    volumes:
+      # Mount Nginx config file from host
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      # Mount the application code (read-only) for Nginx to serve static files
+      - ./app-code:/var/www:ro 
+    networks:
+      - app-network
+    depends_on:
+      - app
+
+  # PostgreSQL Database Container
+  db:
+    image: postgres:15-alpine
+    container_name: laravel_db_staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-laravel}
+      POSTGRES_USER: ${DB_USERNAME:-sail}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+    volumes:
+      # Mount Postgres data to the specified path on VM host
+      - /mnt/data/bislinker/staging/postgres_data:/var/lib/postgresql/data 
+    networks:
+      - app-network
+    ports: # Expose if needed for direct access (optional)
+      - "5432:5432" 
+
+  # Redis Container
+  redis:
+    image: redis:alpine
+    container_name: laravel_redis_staging
+    restart: unless-stopped
+    volumes:
+      # Mount Redis data to the specified path on VM host
+      - /mnt/data/bislinker/staging/redis_data:/data
+    networks:
+      - app-network
+    ports: # Expose if needed for direct access (optional)
+      - "6379:6379"
+
+networks:
+  app-network:
+    driver: bridge
