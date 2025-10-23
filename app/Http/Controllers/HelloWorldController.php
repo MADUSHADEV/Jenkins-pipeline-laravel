@@ -11,7 +11,7 @@ class HelloWorldController extends Controller
         return response()->json([
             'message' => 'Hello World!',
             'timestamp' => now(),
-            'status' => 'success'
+            'status' => 'success',
         ]);
     }
 
@@ -19,13 +19,13 @@ class HelloWorldController extends Controller
     {
         $sampleData = [
             'id' => $id,
-            'name' => 'Sample User ' . $id,
-            'email' => 'user' . $id . '@example.com',
-            'phone' => '123-456-4570',
-            'message' => 'This is a sample message for user ' . $id,
-            'created_at' => now()->subDays(rand(1, 30))
+            'name' => 'Sample User '.$id,
+            'email' => 'user'.$id.'@example.com',
+            'phone' => '2354778979',
+            'message' => 'This is a sample message for user '.$id,
+            'created_at' => now()->subDays(rand(1, 30)),
         ];
-        
+
         return response()->json($sampleData);
     }
 
@@ -35,13 +35,13 @@ class HelloWorldController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email',
             'phone' => 'nullable|string|max:20',
-            'message' => 'nullable|string'
+            'message' => 'nullable|string',
         ]);
-        
+
         return response()->json([
             'message' => 'Data received successfully',
             'data' => $data,
-            'id' => rand(1000, 9999)
+            'id' => rand(1000, 9999),
         ], 201);
     }
 }

@@ -16,9 +16,9 @@ class HelloWorldController2 extends Controller
         $data = [
             'id' => $id,
             'title' => 'Sample Title',
-            'description' => 'This is a sample description for item ' . $id
+            'description' => 'This is a sample description for item '.$id,
         ];
-        
+
         return response()->json($data);
     }
 
@@ -26,14 +26,14 @@ class HelloWorldController2 extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email'
+            'email' => 'required|email',
         ]);
 
         // Sample processing logic
         $result = [
             'success' => true,
             'message' => 'Data processed successfully',
-            'data' => $validated
+            'data' => $validated,
         ];
 
         return response()->json($result, 201);
