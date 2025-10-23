@@ -57,6 +57,9 @@ pipeline {
 
                 echo 'Generating application key...'
                 sh 'php artisan key:generate'
+
+                echo 'Installing Node.js dependencies and building frontend...'
+                sh 'npm install'
             }
         }
 
@@ -72,9 +75,6 @@ pipeline {
 
         stage('Build frontend') {
             steps {
-                echo 'Installing Node.js dependencies and building frontend...'
-                sh 'npm install'
-
                 echo 'Building frontend assets...'
                 sh 'npm run build'
             }
