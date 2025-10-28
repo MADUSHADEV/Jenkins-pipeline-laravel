@@ -1,4 +1,5 @@
 # Stage 1: Install backend dependencies with Composer
+# Using specific alpine version for consistency and security
 FROM composer:2.8 AS vendor
 
 # Set working directory
@@ -8,62 +9,59 @@ WORKDIR /app
 COPY composer.json composer.json
 COPY composer.lock composer.lock
 
-# Install PHP dependencies
+# Install PHP dependencies optimized for production
 RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
 
-# Stage 2: Build frontend assets with Node.js
-FROM node:22.21-alpine AS frontend
+# --- Stage 2 (Frontend Build) Removed ---
 
-# Set working directory
-WORKDIR /app
-
-# Copy frontend package manifests
-COPY package.json package.json
-COPY package-lock.json package-lock.json
-COPY vite.config.ts vite.config.ts
-COPY components.json components.json
-COPY resources/ resources/
-
-# Install Node.js dependencies
-RUN npm install
-
-# Build frontend assets
-RUN npm run build
-
-# Stage 3: Final application image
-FROM php:8.3-fpm-alpine AS Final
+# Stage 3: Final application image (Includes Node build)
+# Using specific alpine version
+FROM php:8.3-fpm-alpine AS final
 
 # Set working directory
 WORKDIR /var/www
 
-# Copy composer dependencies from vendor stage
-COPY --from=vendor /app/vendor/  /var/www/vendor/
-
-# Copy frontend assets from frontend stage
-COPY --from=frontend /app/public/build/ /var/www/public/build/
-
-# Copy the rest of the application code
-COPY . /var/www/
-
-# Install system dependencies needed for extensions
+# Install system dependencies 
+# Added nodejs and npm
+# Added build dependencies ($PHPIZE_DEPS) needed for PECL Redis install
 RUN apk add --no-cache \
-              # Build tools
-              $PHPIZE_DEPS \
-              # For PostgreSQL
-              libpq-dev \
-              # For Zip
-              libzip-dev
+        $PHPIZE_DEPS \
+        libpq-dev \
+        libzip-dev \
+        nodejs \
+        npm
 
 # Install required PHP extensions
-RUN docker-php-ext-install pdo_mysql pdo_pgsql zip bcmath
+# Added common Laravel extensions often needed: tokenizer, xml, curl
+RUN docker-php-ext-install pdo_mysql pdo_pgsql zip bcmath tokenizer xml curl
 
 # Install Redis extension via PECL
 RUN pecl install redis && docker-php-ext-enable redis
 
+# Clean up build dependencies after PECL install
+RUN apk del $PHPIZE_DEPS
+
+# Copy Composer dependencies from vendor stage
+COPY --from=vendor /app/vendor/ /var/www/vendor/
+
+# Copy the entire application code first
+# This includes frontend source files needed for npm install/build
+COPY . /var/www/
+
+# Install Node.js dependencies
+RUN npm install
+
+# Build frontend assets (PHP is available in this stage)
+RUN npm run build
+
+# --- Optional Cleanup: Remove Node.js/npm after build ---
+# Uncomment the line below if you want the smallest possible final image
+# RUN apk del nodejs npm
+
 # Set permissions for Laravel storage and cache directories
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# Expose port 9000 and start PHP-FPM server
+# Expose port 9000 for PHP-FPM
 EXPOSE 9000
 
 # Start PHP-FPM server
