@@ -124,16 +124,16 @@ pipeline {
                     echo "Attempting to log in to Docker Hub and push image: ${env.IMAGE_NAME_WITH_TAG}"
 
                     // Log in to Docker Hub
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        echo 'Credentials retrieved. Attempting Docker login...' // <-- ADDED LOGGING
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        echo 'Credentials retrieved. Attempting Docker login...' 
                         sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
-                        echo 'Docker login successful. Attempting Docker push...' // <-- ADDED LOGGING
+                        echo 'Docker login successful. Attempting Docker push...' 
 
                         // Push the image
                         sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
-                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub." // <-- ADDED LOGGING
+                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."    
                     }
-                    echo 'Docker Hub push process finished.' // <-- ADDED LOGGING
+                    echo 'Docker Hub push process finished.'
                 }
             }
 
