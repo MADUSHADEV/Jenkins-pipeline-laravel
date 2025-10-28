@@ -91,6 +91,56 @@ pipeline {
             }
         }
 
+        stage('Build Docker Image') {
+            when {
+                branch "${MAIN_BRANCH_NAME}"
+            }
+
+            steps {
+                script {
+                    // Define Docker image name and tag
+                    def imageName = 'madushadev/alg-30-buslinker'
+                    def imageTag = env.BUILD_NUMBER ?: 'latest'
+
+                    // Full image name with tag
+                    def fullImageName = "${imageName}:${imageTag}"
+
+                    // Build the Docker image
+                    sh "docker build -t ${fullImageName} ."
+
+                    // Store the full image name in the environment for later stages
+                    env.IMAGE_NAME_WITH_TAG = fullImageName
+                }
+            }
+        }
+
+        stage('Push Docker Image to Docker Hub') {
+            when {
+                branch "${MAIN_BRANCH_NAME}"
+            }
+
+            steps {
+                script {
+                    echo "Logging in to Docker Hub and pushing image: ${env.IMAGE_NAME_WITH_TAG}"
+                    // Log in to Docker Hub
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
+                    // Push the image
+                        sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
+                    }
+
+                    // Push the Docker image
+                    echo 'Image pushed successfully.'
+                }
+            }
+            post {
+                always {
+                    // Always logout after push attempt
+                    sh 'docker logout' 
+                }
+            }
+        }
+
         stage('Deploy to Development') {
             when {
                 branch 'development'
