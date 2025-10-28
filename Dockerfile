@@ -1,5 +1,5 @@
 # Stage 1: Install backend dependencies with Composer
-FROM composer:2.7.2-alpine AS vendor
+FROM composer:2.8 AS vendor
 
 # Set working directory
 WORKDIR /app
