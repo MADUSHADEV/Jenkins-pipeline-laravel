@@ -23,40 +23,53 @@ WORKDIR /var/www
 
 # Install system dependencies 
 # Added nodejs and npm
-# Added build dependencies ($PHPIZE_DEPS) needed for PECL Redis install
+# Added php83 extensions for mysql, pgsql, zip, bcmath, tokenizer, xml, curl, redis
 RUN apk add --no-cache \
-        autoconf \
-        gcc \
-        g++ \
-        make \
-        bison \
-        re2c \
-        $PHPIZE_DEPS \
-        libpq-dev \
-        libzip-dev \
+        # PHP Extensions
+        php83-pdo_mysql \
+        php83-pdo_pgsql \
+        php83-zip \
+        php83-bcmath \
+        php83-tokenizer \
+        php83-xml \
+        php83-curl \
+        php83-redis \
+        # Node.js
         nodejs \
-        npm
+        npm \
+        # Other dependencies (needed if you still compile some extensions)
+        # Keep for pecl or manual compiles if needed later
+        $PHPIZE_DEPS \ 
+        libpq-dev \
+        libzip-dev
 
-# Install required PHP extensions
-RUN docker-php-ext-install pdo_mysql pdo_pgsql zip bcmath tokenizer xml curl
+# --- Remove docker-php-ext-install and pecl install ---
+# We are now using apk for these extensions
 
-# Install Redis extension via PECL
-RUN pecl install redis && docker-php-ext-enable redis
+# Clean up build dependencies (keep only runtime deps)
+# We remove PHPIZE_DEPS now as they are usually not needed after apk install
+RUN apk del $PHPIZE_DEPS
 
-# Clean up build dependencies AFTER extensions are installed
-RUN apk del autoconf gcc g++ make bison re2c $PHPIZE_DEPS
-
-# ... (rest of the Dockerfile: COPY commands, npm install/build, chown, EXPOSE, CMD) ...
+# Copy Composer dependencies
 COPY --from=vendor /app/vendor/ /var/www/vendor/
-# Copy the rest of the application code
+
+# Copy the entire application code first
 COPY . /var/www/
-# Install Node.js dependencies and build frontend assets
+
+# Install Node.js dependencies
 RUN npm install
-# Build the frontend assets
+
+# Build frontend assets
 RUN npm run build
-# Set proper permissions for Laravel storage and cache directories
+
+# --- Optional Cleanup: Remove Node.js/npm after build ---
+# RUN apk del nodejs npm
+
+# Set permissions for Laravel storage and cache directories
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-# Expose port 9000 and start PHP-FPM server
+
+# Expose port 9000 for PHP-FPM
 EXPOSE 9000
+
 # Start PHP-FPM server
 CMD ["php-fpm"]
