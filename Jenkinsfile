@@ -127,16 +127,11 @@ pipeline {
                         sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
                     // Push the image
                         sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
+                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."
                     }
 
                     // Push the Docker image
                     echo 'Image pushed successfully.'
-                }
-            }
-            post {
-                always {
-                    // Always logout after push attempt
-                    sh 'docker logout' 
                 }
             }
         }
@@ -177,6 +172,10 @@ pipeline {
             archiveArtifacts artifacts: 'test-results.xml', allowEmptyArchive: true
 
             junit 'test-results.xml'
+
+            echo 'Cleaning up workspace...'
+            sh 'docker logout' 
+            
             cleanWs()
         }
         success {
