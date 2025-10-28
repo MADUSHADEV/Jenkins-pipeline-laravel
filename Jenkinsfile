@@ -121,17 +121,27 @@ pipeline {
 
             steps {
                 script {
-                    echo "Logging in to Docker Hub and pushing image: ${env.IMAGE_NAME_WITH_TAG}"
+                    echo "Attempting to log in to Docker Hub and push image: ${env.IMAGE_NAME_WITH_TAG}"
+
                     // Log in to Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                        echo 'Credentials retrieved. Attempting Docker login...' // <-- ADDED LOGGING
                         sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
-                    // Push the image
-                        sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
-                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."
-                    }
+                        echo 'Docker login successful. Attempting Docker push...' // <-- ADDED LOGGING
 
-                    // Push the Docker image
-                    echo 'Image pushed successfully.'
+                        // Push the image
+                        sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
+                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub." // <-- ADDED LOGGING
+                    }
+                    echo 'Docker Hub push process finished.' // <-- ADDED LOGGING
+                }
+            }
+
+            post {
+                always {
+                    // Always logout after push attempt for this stage
+                    echo 'Logging out from Docker Hub...'
+                    sh 'docker logout'
                 }
             }
         }
@@ -174,8 +184,6 @@ pipeline {
             junit 'test-results.xml'
 
             echo 'Cleaning up workspace...'
-            sh 'docker logout' 
-            
             cleanWs()
         }
         success {
