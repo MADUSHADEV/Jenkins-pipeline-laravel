@@ -25,6 +25,12 @@ WORKDIR /var/www
 # Added nodejs and npm
 # Added build dependencies ($PHPIZE_DEPS) needed for PECL Redis install
 RUN apk add --no-cache \
+        autoconf \
+        gcc \
+        g++ \
+        make \
+        bison \
+        re2c \
         $PHPIZE_DEPS \
         libpq-dev \
         libzip-dev \
@@ -32,37 +38,25 @@ RUN apk add --no-cache \
         npm
 
 # Install required PHP extensions
-# Added common Laravel extensions often needed: tokenizer, xml, curl
 RUN docker-php-ext-install pdo_mysql pdo_pgsql zip bcmath tokenizer xml curl
 
 # Install Redis extension via PECL
 RUN pecl install redis && docker-php-ext-enable redis
 
-# Clean up build dependencies after PECL install
-RUN apk del $PHPIZE_DEPS
+# Clean up build dependencies AFTER extensions are installed
+RUN apk del autoconf gcc g++ make bison re2c $PHPIZE_DEPS
 
-# Copy Composer dependencies from vendor stage
+# ... (rest of the Dockerfile: COPY commands, npm install/build, chown, EXPOSE, CMD) ...
 COPY --from=vendor /app/vendor/ /var/www/vendor/
-
-# Copy the entire application code first
-# This includes frontend source files needed for npm install/build
+# Copy the rest of the application code
 COPY . /var/www/
-
-# Install Node.js dependencies
+# Install Node.js dependencies and build frontend assets
 RUN npm install
-
-# Build frontend assets (PHP is available in this stage)
+# Build the frontend assets
 RUN npm run build
-
-# --- Optional Cleanup: Remove Node.js/npm after build ---
-# Uncomment the line below if you want the smallest possible final image
-# RUN apk del nodejs npm
-
-# Set permissions for Laravel storage and cache directories
+# Set proper permissions for Laravel storage and cache directories
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-# Expose port 9000 for PHP-FPM
+# Expose port 9000 and start PHP-FPM server
 EXPOSE 9000
-
 # Start PHP-FPM server
 CMD ["php-fpm"]
