@@ -162,8 +162,12 @@ pipeline {
             }
             steps {
                 echo "Deploying image ${env.IMAGE_NAME_WITH_TAG} to Staging Server..."
-                    // Add your deployment commands here
-                    sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
+
+                echo 'Current workspace contents:'
+                sh 'ls -lR'
+
+                // Add your deployment commands here
+                sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
             }
         }
 
