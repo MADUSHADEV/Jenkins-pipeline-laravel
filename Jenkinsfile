@@ -125,13 +125,13 @@ pipeline {
 
                     // Log in to Docker Hub
                     withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        echo 'Credentials retrieved. Attempting Docker login...' 
+                        echo 'Credentials retrieved. Attempting Docker login...'
                         sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
-                        echo 'Docker login successful. Attempting Docker push...' 
+                        echo 'Docker login successful. Attempting Docker push...'
 
                         // Push the image
                         sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
-                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."    
+                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."
                     }
                     echo 'Docker Hub push process finished.'
                 }
@@ -163,7 +163,10 @@ pipeline {
             steps {
                 echo "Deploying image ${env.IMAGE_NAME_WITH_TAG} to Staging Server..."
                 // Add your deployment commands here
-                sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
+
+                withAnsible(installation: 'Ansible-Default') {
+                    sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
+                }
             }
         }
 
