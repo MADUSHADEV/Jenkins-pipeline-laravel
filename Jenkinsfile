@@ -163,8 +163,10 @@ pipeline {
             steps {
                 echo "Deploying image ${env.IMAGE_NAME_WITH_TAG} to Staging Server..."
 
-                echo 'Current workspace contents:'
-                sh 'ls -lR'
+                echo 'Copying Ansible files from VM to workspace...'
+                // --- NEW STEP ---
+                // Copy Ansible files from the VM's home directory into the current workspace
+                sh 'cp /home/azureuser/deploy.yml . && cp /home/azureuser/inventory.ini .'
 
                 // Add your deployment commands here
                 sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
