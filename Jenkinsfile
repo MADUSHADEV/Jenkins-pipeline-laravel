@@ -166,7 +166,7 @@ pipeline {
                 echo 'Copying Ansible files from VM to workspace...'
                 // --- NEW STEP ---
                 // Copy Ansible files from the VM's home directory into the current workspace
-                sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.config.j2 .'
+                sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.config.j2 . && cp -r /ansible-files/group_vars .'
 
                 // Add your deployment commands here
                 sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
