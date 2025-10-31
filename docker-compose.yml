@@ -4,7 +4,7 @@ services:
   # Laravel Application Container
   app:
     # Replace with your actual image name from Docker Hub or ACR
-    image: madushadev/alg-30-buslinker:latest
+    image: ${APP_IMAGE_TAGGED}
     container_name: laravel_app_staging
     restart: unless-stopped
     working_dir: /var/www
