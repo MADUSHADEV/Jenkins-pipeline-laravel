@@ -166,7 +166,7 @@ pipeline {
                 echo 'Copying Ansible files from VM to workspace...'
                 // --- NEW STEP ---
                 // Copy Ansible files from the VM's home directory into the current workspace
-                sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.config.j2 . && cp -r /ansible-files/group_vars .'
+                sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.conf.j2 . && cp -r /ansible-files/group_vars .'
 
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
                     echo 'Preparing Ansible extra vars...'
