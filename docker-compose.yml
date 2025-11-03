@@ -24,7 +24,7 @@ services:
       - "8001:80" # Map VM port 80 to container port 80
     volumes:
       # Mount Nginx config file from host
-      - ./app-code/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx.conf:/etc/nginx/nginx.conf
       # Mount the application code (read-only) for Nginx to serve static files
       - ./app-code:/var/www:ro 
     networks:
