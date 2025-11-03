@@ -168,8 +168,13 @@ pipeline {
                 // Copy Ansible files from the VM's home directory into the current workspace
                 sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.config.j2 . && cp -r /ansible-files/group_vars .'
 
-                // Add your deployment commands here
-                sh "ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG}'"
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
+                    echo 'Preparing Ansible extra vars...'
+                     sh """
+                        ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG} docker_user=${DOCKERHUB_USERNAME} docker_password=${DOCKERHUB_PASSWORD}'
+                    """
+                }
+            // Add your deployment commands here
             }
         }
 
