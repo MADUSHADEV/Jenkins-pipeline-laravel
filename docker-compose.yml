@@ -21,7 +21,7 @@ services:
     container_name: laravel_web_staging
     restart: unless-stopped
     ports:
-      - "80:80" # Map VM port 80 to container port 80
+      - "8001:80" # Map VM port 80 to container port 80
     volumes:
       # Mount Nginx config file from host
       - ./nginx.conf:/etc/nginx/nginx.conf
