@@ -5,14 +5,10 @@ FROM composer:2.8 AS vendor
 # Set working directory
 WORKDIR /app
 
-# Copy composer manifests
-COPY composer.json composer.json
-COPY composer.lock composer.lock
-
-# Install PHP dependencies optimized for production
-RUN composer install --no-dev --no-scripts --prefer-dist 
-
-# Now, generate an optimized autoloader that ignores dev-only providers
+# Copy the application code FIRST, so 'artisan' is available
+COPY . .
+# Now, run the install and dump-autoload commands
+RUN composer install --no-dev --no-scripts --prefer-dist
 RUN composer dump-autoload --no-dev --optimize
 
 # --- Stage 2 (Frontend Build) Removed ---
