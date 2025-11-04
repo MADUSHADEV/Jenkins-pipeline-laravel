@@ -26,8 +26,8 @@ services:
     volumes:
       # Mount Nginx config file from host
       - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      # Mount the application code (read-only) for Nginx to serve static 
-      - ./app-code:/var/www:ro 
+      # Mount the application code (read-only) for Nginx to serve static files
+      - .:/var/www:ro
     networks:
       - app-network
     depends_on:
