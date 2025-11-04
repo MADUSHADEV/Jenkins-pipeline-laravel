@@ -1,37 +1,45 @@
-# Stage 1: Build the vendor directory
-FROM composer:2.8 as vendor
+# Stage 1: The "Builder" stage with all tools
+FROM php:8.3-alpine AS builder
+
+# Install system dependencies including git, zip, and nodejs
+RUN apk add --no-cache git unzip libzip-dev nodejs npm
+
+# Install Composer globally
+COPY --from=composer:lts /usr/bin/composer /usr/bin/composer
+
+# Install PHP extensions
+RUN docker-php-ext-install pdo_mysql zip
+
+# Set the working directory
 WORKDIR /app
+
+# Copy the entire application
 COPY . .
-# Generate an optimized autoloader for production
+
+# Install Composer dependencies and generate optimized autoloader
 RUN composer install --no-dev --prefer-dist --optimize-autoloader
 
-# Stage 2: Build frontend assets
-FROM node:18-alpine as frontend
-WORKDIR /app
-COPY . .
-# Copy the production vendor directory from the previous stage
-COPY --from=vendor /app/vendor /app/vendor
-# Create a temporary env file for the build
+# Create the .env file and generate the key (PHP is available here)
 RUN cp .env.example .env
 RUN php artisan key:generate
+
+# Install NPM dependencies and build the frontend
 RUN npm install
 RUN npm run build
 
-# Stage 3: Final production image
+
+# Stage 2: The final, clean production image
 FROM php:8.3-fpm-alpine
+
+# Set the working directory
 WORKDIR /var/www
 
-# Install only necessary PHP extensions for a lean image
-RUN apk add --no-cache \
-        php83-pdo_mysql \
-        php83-pdo_pgsql \
-        php83-zip \
-        php83-bcmath \
-        php83-curl \
-        php83-redis
+# Install only the required runtime PHP extensions
+RUN apk add --no-cache libzip
+RUN docker-php-ext-install pdo_mysql zip
 
-# Copy the final application code from the frontend stage (which has everything)
-COPY --from=frontend /app /var/www
+# Copy the fully built application (with vendor and public/build) from the builder stage
+COPY --from=builder /app /var/www
 
 # Set correct ownership for Laravel
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
