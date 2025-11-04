@@ -7,7 +7,7 @@ RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
 # Stage 2: Node dependencies and frontend build
 FROM node:18-alpine AS frontend
 WORKDIR /app
-COPY package*.json vite.config.js ./
+COPY package*.json vite.config.ts ./
 COPY resources ./resources
 COPY artisan ./artisan
 COPY bootstrap ./bootstrap
