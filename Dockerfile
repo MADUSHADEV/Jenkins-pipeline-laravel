@@ -29,11 +29,18 @@ RUN npm ci
 
 # Copy app source and build frontend assets
 COPY . .
-# Disable Laravel Wayfinder artisan calls during build
 ENV WAYFINDER_SKIP_BUILD=1
 
-RUN npm run build
+# Disable php artisan calls from vite-plugin-wayfinder
+RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
+    echo -e '#!/bin/sh\nif [ "$1" = "artisan" ]; then echo "Skipping artisan command during build"; else exec /usr/local/bin/php-real "$@"; fi' > /usr/local/bin/php && \
+    chmod +x /usr/local/bin/php
 
+# Restore original PHP binary (optional)
+RUN mv /usr/local/bin/php-real /usr/local/bin/php
+
+# Install and build frontend safely
+RUN npm ci && npm run build:ci
 
 # ============================================================
 # Stage 3: PHP-FPM (Final Production Image)
