@@ -10,7 +10,10 @@ COPY composer.json composer.json
 COPY composer.lock composer.lock
 
 # Install PHP dependencies optimized for production
-RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
+RUN composer install --no-dev --no-scripts --prefer-dist 
+
+# Now, generate an optimized autoloader that ignores dev-only providers
+RUN composer dump-autoload --no-dev --optimize
 
 # --- Stage 2 (Frontend Build) Removed ---
 
