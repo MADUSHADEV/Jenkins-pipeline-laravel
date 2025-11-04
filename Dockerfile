@@ -29,6 +29,9 @@ RUN npm ci
 
 # Copy app source and build frontend assets
 COPY . .
+# Disable Laravel Wayfinder artisan calls during build
+ENV WAYFINDER_SKIP_BUILD=1
+
 RUN npm run build
 
 
