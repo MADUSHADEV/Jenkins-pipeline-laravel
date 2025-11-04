@@ -43,11 +43,18 @@ COPY --from=vendor /app/vendor/ /var/www/vendor/
 # Build Frontend (Safe CI Mode)
 # ------------------------------------------------------------
 
-# Mark this build as CI mode (so Wayfinder skips PHP artisan)
 ENV WAYFINDER_SKIP_BUILD=1
 
-# Run CI build script (defined in package.json)
+# Disable php artisan calls from vite-plugin-wayfinder
+RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
+    echo -e '#!/bin/sh\nif [ "$1" = "artisan" ]; then echo "Skipping artisan command during build"; else exec /usr/local/bin/php-real "$@"; fi' > /usr/local/bin/php && \
+    chmod +x /usr/local/bin/php
+
+# Install and build frontend safely
 RUN npm ci && npm run build:ci
+
+# Restore original PHP binary (optional)
+RUN mv /usr/local/bin/php-real /usr/local/bin/php
 
 # Optional cleanup (saves image size)
 # RUN apk del nodejs npm
