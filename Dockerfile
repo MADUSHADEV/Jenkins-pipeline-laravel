@@ -50,11 +50,11 @@ RUN apk add --no-cache \
 # We remove PHPIZE_DEPS now as they are usually not needed after apk install
 RUN apk del $PHPIZE_DEPS
 
-# Copy Composer dependencies
-COPY --from=vendor /app/vendor/ /var/www/vendor/
-
 # Copy the entire application code first
 COPY . /var/www/
+
+# Copy Composer dependencies
+COPY --from=vendor /app/vendor/ /var/www/vendor/
 
 # Install Node.js dependencies
 RUN npm install
@@ -63,7 +63,7 @@ RUN npm install
 RUN npm run build
 
 # --- Optional Cleanup: Remove Node.js/npm after build ---
-# RUN apk del nodejs npm
+RUN apk del nodejs npm
 
 # Set permissions for Laravel storage and cache directories
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
