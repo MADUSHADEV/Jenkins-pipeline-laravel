@@ -32,6 +32,12 @@ COPY . /var/www/
 COPY --from=vendor /app/vendor/ /var/www/vendor/
 # ---------------------
 
+# NEW: Set up a minimal .env for build-time bootstrapping
+# This assumes .env.example exists; adjust if your project uses a different template.
+RUN cp .env.example .env
+# Generate APP_KEY to allow Laravel to boot without configuration errors
+RUN php artisan key:generate
+
 # Now we can run npm install and build, because package.json is present
 RUN npm install
 RUN npm run build
