@@ -1,7 +1,7 @@
 # Stage 1: The "Builder" stage with all tools
 FROM php:8.3-alpine AS builder
 
-# Install system dependencies including git, zip, and nodejs
+# Install system dependencies including git, zip dev library, and nodejs
 RUN apk add --no-cache git unzip libzip-dev nodejs npm
 
 # Install Composer globally
@@ -19,7 +19,7 @@ COPY . .
 # Install Composer dependencies and generate optimized autoloader
 RUN composer install --no-dev --prefer-dist --optimize-autoloader
 
-# Create the .env file and generate the key (PHP is available here)
+# Create the .env file and generate the key
 RUN cp .env.example .env
 RUN php artisan key:generate
 
@@ -34,8 +34,9 @@ FROM php:8.3-fpm-alpine
 # Set the working directory
 WORKDIR /var/www
 
-# Install only the required runtime PHP extensions
+# Install only the required runtime PHP libraries
 RUN apk add --no-cache libzip
+# Install the required PHP extensions
 RUN docker-php-ext-install pdo_mysql zip
 
 # Copy the fully built application (with vendor and public/build) from the builder stage
