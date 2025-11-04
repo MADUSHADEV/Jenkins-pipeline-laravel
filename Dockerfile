@@ -59,6 +59,12 @@ COPY --from=vendor /app/vendor/ /var/www/vendor/
 # Install Node.js dependencies
 RUN npm install
 
+# --- THE FIX IS HERE ---
+# Create a temporary .env file from the example for the build step
+# and generate the application key. This is needed for artisan commands.
+RUN cp .env.example .env
+RUN php artisan key:generate
+
 # Build frontend assets
 RUN npm run build
 
