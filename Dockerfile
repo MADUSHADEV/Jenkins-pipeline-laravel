@@ -1,80 +1,40 @@
-# Stage 1: Install backend dependencies with Composer
-# Using specific alpine version for consistency and security
-FROM composer:2.8 AS vendor
-
-# Set working directory
+# Stage 1: Build the vendor directory
+FROM composer:2.8 as vendor
 WORKDIR /app
-
-# Copy the application code FIRST, so 'artisan' is available
 COPY . .
-# Now, run the install and dump-autoload commands
-RUN composer install --no-dev --no-scripts --prefer-dist
-RUN composer dump-autoload --no-dev --optimize
+# Generate an optimized autoloader for production
+RUN composer install --no-dev --prefer-dist --optimize-autoloader
 
-# --- Stage 2 (Frontend Build) Removed ---
+# Stage 2: Build frontend assets
+FROM node:18-alpine as frontend
+WORKDIR /app
+COPY . .
+# Copy the production vendor directory from the previous stage
+COPY --from=vendor /app/vendor /app/vendor
+# Create a temporary env file for the build
+RUN cp .env.example .env
+RUN php artisan key:generate
+RUN npm install
+RUN npm run build
 
-# Stage 3: Final application image (Includes Node build)
-# Using specific alpine version
-FROM php:8.3-fpm-alpine AS final
-
-# Set working directory
+# Stage 3: Final production image
+FROM php:8.3-fpm-alpine
 WORKDIR /var/www
 
-# Install system dependencies 
-# Added nodejs and npm
-# Added php83 extensions for mysql, pgsql, zip, bcmath, tokenizer, xml, curl, redis
+# Install only necessary PHP extensions for a lean image
 RUN apk add --no-cache \
-        # PHP Extensions
         php83-pdo_mysql \
         php83-pdo_pgsql \
         php83-zip \
         php83-bcmath \
-        php83-tokenizer \
-        php83-xml \
         php83-curl \
-        php83-redis \
-        # Node.js
-        nodejs \
-        npm \
-        # Other dependencies (needed if you still compile some extensions)
-        # Keep for pecl or manual compiles if needed later
-        $PHPIZE_DEPS \ 
-        libpq-dev \
-        libzip-dev
+        php83-redis
 
-# --- Remove docker-php-ext-install and pecl install ---
-# We are now using apk for these extensions
+# Copy the final application code from the frontend stage (which has everything)
+COPY --from=frontend /app /var/www
 
-# Clean up build dependencies (keep only runtime deps)
-# We remove PHPIZE_DEPS now as they are usually not needed after apk install
-RUN apk del $PHPIZE_DEPS
-
-# Copy the entire application code first
-COPY . /var/www/
-
-# Copy Composer dependencies
-COPY --from=vendor /app/vendor/ /var/www/vendor/
-
-# Install Node.js dependencies
-RUN npm install
-
-# --- THE FIX IS HERE ---
-# Create a temporary .env file from the example for the build step
-# and generate the application key. This is needed for artisan commands.
-RUN cp .env.example .env
-RUN php artisan key:generate
-
-# Build frontend assets
-RUN npm run build
-
-# --- Optional Cleanup: Remove Node.js/npm after build ---
-RUN apk del nodejs npm
-
-# Set permissions for Laravel storage and cache directories
+# Set correct ownership for Laravel
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# Expose port 9000 for PHP-FPM
 EXPOSE 9000
-
-# Start PHP-FPM server
 CMD ["php-fpm"]
