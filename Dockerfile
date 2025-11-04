@@ -6,7 +6,10 @@ WORKDIR /app
 
 # Copy manifests first to leverage Docker cache
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
+
+# Install ALL dependencies (including dev, scripts, etc.)
+# so optional packages like laravel/pail are included.
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader
 
 
 # ============================================================
@@ -29,7 +32,10 @@ RUN apk add --no-cache \
         npm \
         $PHPIZE_DEPS \
         libpq-dev \
-        libzip-dev
+        libzip-dev \
+        git \
+        zip \
+        unzip
 
 # ------------------------------------------------------------
 # Copy the application code FIRST
@@ -42,22 +48,15 @@ COPY --from=vendor /app/vendor/ /var/www/vendor/
 # ------------------------------------------------------------
 # Build Frontend (Safe CI Mode)
 # ------------------------------------------------------------
-
 ENV WAYFINDER_SKIP_BUILD=1
 
-# Disable php artisan calls from vite-plugin-wayfinder
 RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
     echo -e '#!/bin/sh\nif [ "$1" = "artisan" ]; then echo "Skipping artisan command during build"; else exec /usr/local/bin/php-real "$@"; fi' > /usr/local/bin/php && \
     chmod +x /usr/local/bin/php
 
-# Install and build frontend safely
 RUN npm ci && npm run build:ci
 
-# Restore original PHP binary (optional)
 RUN mv /usr/local/bin/php-real /usr/local/bin/php
-
-# Optional cleanup (saves image size)
-# RUN apk del nodejs npm
 
 # ------------------------------------------------------------
 # Set permissions for Laravel writable directories
