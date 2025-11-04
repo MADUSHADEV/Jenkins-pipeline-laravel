@@ -1,69 +1,77 @@
 # ============================================================
-# Stage 1: Install backend dependencies with Composer
+# Stage 1: Composer (Backend Dependencies)
 # ============================================================
 FROM composer:2.8 AS vendor
 WORKDIR /app
 
-# Copy manifests first to leverage Docker cache
+# Copy only composer files first (for better caching)
 COPY composer.json composer.lock ./
 
-# Install PHP dependencies (skip scripts to avoid artisan error)
-RUN composer install --no-interaction --no-dev --no-scripts --prefer-dist --optimize-autoloader
+# Install dependencies without dev and without running scripts
+RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader \
+    && rm -rf bootstrap/cache/*.php
+
+# Copy full application code (needed for autoload dump)
+COPY . .
+
+# Rebuild optimized autoloader cleanly (now artisan is available)
+RUN composer dump-autoload --optimize
 
 
 # ============================================================
-# Stage 2: Final application image
+# Stage 2: Node (Frontend Build)
+# ============================================================
+FROM node:20-alpine AS frontend
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Copy app source and build frontend assets
+COPY . .
+RUN npm run build
+
+
+# ============================================================
+# Stage 3: PHP-FPM (Final Production Image)
 # ============================================================
 FROM php:8.3-fpm-alpine AS final
 WORKDIR /var/www
 
-# Install PHP extensions, Node.js, npm, and build dependencies
+# --- System and PHP extensions ---
 RUN apk add --no-cache \
         php83-pdo_mysql \
         php83-pdo_pgsql \
-        php83-zip \
         php83-bcmath \
+        php83-zip \
         php83-tokenizer \
         php83-xml \
         php83-curl \
         php83-redis \
-        nodejs \
-        npm \
-        $PHPIZE_DEPS \
         libpq-dev \
-        libzip-dev
+        libzip-dev \
+        bash shadow supervisor
 
-# ------------------------------------------------------------
-# Copy the full application code
-# ------------------------------------------------------------
-COPY . /var/www/
+# --- Copy backend code and vendor ---
+COPY --from=vendor /app /var/www
+COPY --from=vendor /app/vendor /var/www/vendor
 
-# Copy vendor directory from Composer stage
-COPY --from=vendor /app/vendor/ /var/www/vendor/
+# --- Copy built frontend assets ---
+COPY --from=frontend /app/public /var/www/public
 
-# ------------------------------------------------------------
-# Build Frontend (Safe CI Mode)
-# ------------------------------------------------------------
-ENV WAYFINDER_SKIP_BUILD=1
+# --- Laravel optimization ---
+RUN php artisan config:clear || true \
+    && php artisan cache:clear || true \
+    && php artisan route:clear || true \
+    && php artisan view:clear || true \
+    && php artisan optimize || true
 
-# Disable php artisan calls from vite-plugin-wayfinder
-RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
-    echo -e '#!/bin/sh\nif [ "$1" = "artisan" ]; then echo "Skipping artisan command during build"; else exec /usr/local/bin/php-real "$@"; fi' > /usr/local/bin/php && \
-    chmod +x /usr/local/bin/php
+# --- Set correct permissions for writable dirs ---
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
+    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
-# Install and build frontend safely
-RUN npm ci && npm run build:ci
-
-# Restore original PHP binary (optional)
-RUN mv /usr/local/bin/php-real /usr/local/bin/php
-
-# ------------------------------------------------------------
-# Set permissions for Laravel writable directories
-# ------------------------------------------------------------
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-
-# ------------------------------------------------------------
-# Expose PHP-FPM port
-# ------------------------------------------------------------
+# --- Expose PHP-FPM port ---
 EXPOSE 9000
+
+# --- Start PHP-FPM ---
 CMD ["php-fpm"]
