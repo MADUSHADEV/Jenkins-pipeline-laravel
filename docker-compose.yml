@@ -9,6 +9,7 @@ services:
     restart: unless-stopped
     working_dir: /var/www
     volumes:
+      - ./app-code:/var/www
       # Mount storage and .env from host for persistence
       - ./storage:/var/www/storage
       - ./.env:/var/www/.env
