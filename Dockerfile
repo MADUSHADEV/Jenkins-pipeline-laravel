@@ -45,7 +45,11 @@ RUN apk add --no-cache \
     sqlite \
     zip unzip \
     bash shadow supervisor \
-    && docker-php-ext-install pdo pdo_mysql pdo_pgsql bcmath opcache
+    autoconf g++ make linux-headers \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql bcmath opcache \
+    && apk del autoconf g++ make linux-headers
 
 # --- Install Redis extension via PECL ---
 RUN pecl install redis && docker-php-ext-enable redis
