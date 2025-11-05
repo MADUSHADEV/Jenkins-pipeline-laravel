@@ -42,6 +42,7 @@ WORKDIR /var/www
 RUN apk add --no-cache \
     libpq-dev \
     libzip-dev \
+    sqlite-dev \
     zip unzip \
     bash shadow supervisor \
     autoconf g++ make linux-headers \
