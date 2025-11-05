@@ -36,9 +36,9 @@ services:
     container_name: laravel_db_staging
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_DATABASE:-laravel}
-      POSTGRES_USER: ${DB_USERNAME:-sail}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: laravel_staging
+      POSTGRES_USER: sail_staging
+      POSTGRES_PASSWORD: hello_staging_123
     volumes:
       # Mount Postgres data to the specified path on VM host
       - /mnt/data/bislinker/staging/postgres_data:/var/lib/postgresql/data 
