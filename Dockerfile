@@ -37,7 +37,7 @@ RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
     chmod +x /usr/local/bin/php
 
 # Restore original PHP binary (optional)
-RUN mv /usr/local/bin/php-real /usr/local/bin/php
+# RUN mv /usr/local/bin/php-real /usr/local/bin/php
 
 # Install and build frontend safely
 RUN npm ci && npm run build:ci
