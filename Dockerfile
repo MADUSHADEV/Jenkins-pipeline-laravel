@@ -4,17 +4,14 @@
 FROM composer:2.8 AS vendor
 WORKDIR /app
 
-# Copy only composer files first (for better caching)
+# Copy only composer files for better caching
 COPY composer.json composer.lock ./
 
-# Install dependencies without dev and without running scripts
-RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader \
-    && rm -rf bootstrap/cache/*.php
+# Install only production dependencies (no dev)
+RUN composer install --no-dev --no-scripts --prefer-dist --optimize-autoloader
 
-# Copy full application code (needed for autoload dump)
+# Copy full source and regenerate optimized autoload
 COPY . .
-
-# Rebuild optimized autoloader cleanly (now artisan is available)
 RUN composer dump-autoload --optimize
 
 
@@ -27,20 +24,16 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy app source and build frontend assets
+# Copy app source
 COPY . .
+
+# --- Skip Wayfinder build logic safely ---
+# Disable vite-plugin-wayfinder build without needing PHP
 ENV WAYFINDER_SKIP_BUILD=1
 
-# Disable php artisan calls from vite-plugin-wayfinder
-RUN mv /usr/local/bin/php /usr/local/bin/php-real && \
-    echo -e '#!/bin/sh\nif [ "$1" = "artisan" ]; then echo "Skipping artisan command during build"; else exec /usr/local/bin/php-real "$@"; fi' > /usr/local/bin/php && \
-    chmod +x /usr/local/bin/php
+# Build frontend (no PHP or artisan involved)
+RUN npm run build:ci || npm run build
 
-# Restore original PHP binary (optional)
-# RUN mv /usr/local/bin/php-real /usr/local/bin/php
-
-# Install and build frontend safely
-RUN npm ci && npm run build:ci
 
 # ============================================================
 # Stage 3: PHP-FPM (Final Production Image)
@@ -48,40 +41,31 @@ RUN npm ci && npm run build:ci
 FROM php:8.3-fpm-alpine AS final
 WORKDIR /var/www
 
-# --- System and PHP extensions ---
+# Install PHP extensions and tools
 RUN apk add --no-cache \
-        php83-pdo_mysql \
-        php83-pdo_pgsql \
-        php83-bcmath \
-        php83-zip \
-        php83-tokenizer \
-        php83-xml \
-        php83-curl \
-        php83-redis \
-        libpq-dev \
-        libzip-dev \
-        bash shadow supervisor
+    libpq-dev \
+    libzip-dev \
+    zip unzip \
+    bash shadow supervisor \
+    && docker-php-ext-install pdo pdo_mysql bcmath opcache
 
-# --- Copy backend code and vendor ---
+# Copy application code and vendor from composer stage
 COPY --from=vendor /app /var/www
 COPY --from=vendor /app/vendor /var/www/vendor
 
-# --- Copy built frontend assets ---
+# Copy built frontend from Node stage
 COPY --from=frontend /app/public /var/www/public
 
-# --- Laravel optimization ---
+# Laravel optimizations (ignore errors if no .env yet)
 RUN php artisan config:clear || true \
-    && php artisan cache:clear || true \
-    && php artisan route:clear || true \
-    && php artisan view:clear || true \
-    && php artisan optimize || true
+ && php artisan cache:clear || true \
+ && php artisan route:clear || true \
+ && php artisan view:clear || true \
+ && php artisan optimize || true
 
-# --- Set correct permissions for writable dirs ---
+# Set permissions for Laravel writable directories
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+ && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
-# --- Expose PHP-FPM port ---
 EXPOSE 9000
-
-# --- Start PHP-FPM ---
 CMD ["php-fpm"]
