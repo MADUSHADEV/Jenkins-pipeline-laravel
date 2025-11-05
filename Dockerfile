@@ -42,18 +42,14 @@ WORKDIR /var/www
 RUN apk add --no-cache \
     libpq-dev \
     libzip-dev \
-    sqlite \
     zip unzip \
     bash shadow supervisor \
     autoconf g++ make linux-headers \
     && pecl install redis \
     && docker-php-ext-enable redis \
-    && docker-php-ext-install pdo pdo_mysql pdo_pgsql bcmath opcache \
+    && docker-php-ext-install pdo pdo_mysql pdo_pgsql pdo_sqlite bcmath opcache \
     && apk del autoconf g++ make linux-headers
-
-# --- Install Redis extension via PECL ---
-RUN pecl install redis && docker-php-ext-enable redis
-
+    
 # --- Copy built app files ---
 COPY --from=vendor /app /var/www
 COPY --from=vendor /app/vendor /var/www/vendor
