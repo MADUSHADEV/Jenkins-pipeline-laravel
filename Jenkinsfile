@@ -163,7 +163,7 @@ pipeline {
             steps {
                 echo 'Deploying to Staging...'
 
-                sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/* ."
+                sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/. ."
 
                 // Use the Jenkins credential for the vault password
                 withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
