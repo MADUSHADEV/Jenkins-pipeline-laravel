@@ -92,7 +92,7 @@ pipeline {
         STAGING_URL = 'http://staging.testproject.pipeworker.me/'
         PRODUCTION_URL = 'http://production.testproject.pipeworker.me/'
         // Define the path on the Jenkins controller/agent VM where your Ansible project lives
-        ANSIBLE_PROJECT_PATH = '/home/azureuser/ansible-projects/laravel-test-project'
+        ANSIBLE_PROJECT_PATH = '/ansible-files/ansible-projects/laravel-test-project'
     }
 
     stages {
