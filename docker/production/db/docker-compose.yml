@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: laravel_test_production
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: laravel_production
+      POSTGRES_USER: sail_production
+      POSTGRES_PASSWORD: "hello_production_123"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      # Using Docker named volume (stored on OS disk)
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sail_production -d laravel_production"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - database_network
+
+  # Redis Cache/Session/Queue
+  redis:
+    image: redis:7-alpine
+    container_name: laravel_test_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass "redis_production_pass_123"
+      --appendonly yes
+      --appendfsync everysec
+    volumes:
+      # Using Docker named volume (stored on OS disk)
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - database_network
+
+# Named volumes (Docker manages these on OS disk)
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  database_network:
+    driver: bridge

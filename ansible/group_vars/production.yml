@@ -1,0 +1,10 @@
+# Variables for the production environment
+db_host: 127.0.0.1
+db_database: laravel_production
+db_username: sail_production
+db_password: "hello_production_123" # Use quotes for passwords
+app_env: production
+app_url: http://production.testproject.pipeworker.me/
+app_domain: production.testproject.pipeworker.me
+redis_pass: "redis_production_pass_123"
+project_root: /projects/bislinker/app-code

@@ -1,0 +1,27 @@
+// Jenkinsfile-provision
+pipeline {
+    agent { label 'laravel' }
+
+    parameters {
+        choice(name: 'TARGET_ENVIRONMENT', choices: ['staging', 'production'], description: 'Which environment to provision?')
+    }
+
+    stages {
+        stage('Checkout Infrastructure Code') {
+            steps {
+                checkout scm
+            }
+        }
+        stage('Provision Server') {
+            steps {
+                script {
+                    echo "Provisioning the ${params.TARGET_ENVIRONMENT} server..."
+                    dir('ansible') {
+                        // Use the parameter to limit the run to the correct host
+                        sh "ansible-playbook -i inventory.ini setup.yml --limit ${params.TARGET_ENVIRONMENT}"
+                    }
+                }
+            }
+        }
+    }
+}

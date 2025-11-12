@@ -1,31 +1,82 @@
-def sendDiscordNotification(String buildStatus, String colorCode, String message) {
+def sendDiscordNotification(String buildStatus, String colorCode, String title, Map details = [:]) {
     withCredentials([string(credentialsId: 'discord-webhook-url', variable: 'WEBHOOK_URL')]) {
+        def fields = []
+        
+        // Add build information
+        fields.add([
+            name: "📦 Build",
+            value: "${currentBuild.fullDisplayName}",
+            inline: true
+        ])
+        
+        fields.add([
+            name: "🌿 Branch/Tag",
+            value: "${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}",
+            inline: true
+        ])
+        
+        fields.add([
+            name: "⏱️ Duration",
+            value: "${currentBuild.durationString.replace(' and counting', '')}",
+            inline: true
+        ])
+        
+        // Add stage information if failed
+        if (buildStatus == 'FAILURE' && env.STAGE_NAME) {
+            fields.add([
+                name: "❌ Failed Stage",
+                value: "${env.STAGE_NAME}",
+                inline: false
+            ])
+        }
+        
+        // Add custom details passed to the function
+        details.each { key, value ->
+            fields.add([
+                name: key,
+                value: value,
+                inline: false
+            ])
+        }
+        
+        // Add error details if available
+        if (buildStatus == 'FAILURE' && currentBuild.rawBuild.getLog(10)) {
+            def logLines = currentBuild.rawBuild.getLog(10).join('\n')
+            def truncatedLog = logLines.length() > 1000 ? logLines.substring(0, 1000) + "..." : logLines
+            fields.add([
+                name: "📋 Error Log (Last 10 lines)",
+                value: "```${truncatedLog}```",
+                inline: false
+            ])
+        }
+        
+        // Add links
+        fields.add([
+            name: "🔗 Links",
+            value: "[Build Console](${env.BUILD_URL}console) | [Changes](${env.BUILD_URL}changes)",
+            inline: false
+        ])
+        
         def payload = """
         {
           "embeds": [{
-            "title": "Build ${buildStatus}: ${currentBuild.fullDisplayName}",
+            "title": "${title}",
             "url": "${env.BUILD_URL}",
             "color": "${colorCode}",
-            "fields": [
-              {
-                "name": "Stage Failed",
-                "value": "${env.STAGE_NAME}",
-                "inline": true
-              },
-              {
-                "name": "Message",
-                "value": "${message}",
-                "inline": false
-              }
-            ],
+            "fields": ${groovy.json.JsonOutput.toJson(fields)},
             "footer": {
-              "text": "Jenkins Build Notifier"
-            }
+              "text": "Jenkins CI/CD Pipeline"
+            },
+            "timestamp": "${new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))}"
           }]
         }
         """
-        // Use sh to send the notification via curl
-        sh "curl -X POST -H 'Content-Type: application/json' -d '${payload}' ${WEBHOOK_URL}"
+        
+        sh """
+            curl -X POST -H 'Content-Type: application/json' \
+            -d '${payload.replaceAll("'", "'\\''")}' \
+            \${WEBHOOK_URL}
+        """
     }
 }
 
@@ -38,6 +89,8 @@ pipeline {
         DB_CONNECTION = 'sqlite'
         DB_DATABASE = 'database/database.sqlite'
         MAIN_BRANCH_NAME = 'main'
+        STAGING_URL = 'http://staging.testproject.pipeworker.me/'
+        PRODUCTION_URL = 'http://production.testproject.pipeworker.me/'
     }
 
     stages {
@@ -91,61 +144,6 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
-            when {
-                branch "${MAIN_BRANCH_NAME}"
-            }
-
-            steps {
-                script {
-                    // Define Docker image name and tag
-                    def imageName = 'madushadev/alg-30-buslinker'
-                    def imageTag = env.BUILD_NUMBER ?: 'latest'
-
-                    // Full image name with tag
-                    def fullImageName = "${imageName}:${imageTag}"
-
-                    // Build the Docker image
-                    sh "docker build -t ${fullImageName} ."
-
-                    // Store the full image name in the environment for later stages
-                    env.IMAGE_NAME_WITH_TAG = fullImageName
-                }
-            }
-        }
-
-        stage('Push Docker Image to Docker Hub') {
-            when {
-                branch "${MAIN_BRANCH_NAME}"
-            }
-
-            steps {
-                script {
-                    echo "Attempting to log in to Docker Hub and push image: ${env.IMAGE_NAME_WITH_TAG}"
-
-                    // Log in to Docker Hub
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                        echo 'Credentials retrieved. Attempting Docker login...'
-                        sh "echo ${DOCKERHUB_PASSWORD} | docker login -u ${DOCKERHUB_USERNAME} --password-stdin"
-                        echo 'Docker login successful. Attempting Docker push...'
-
-                        // Push the image
-                        sh "docker push ${env.IMAGE_NAME_WITH_TAG}"
-                        echo "Docker image ${env.IMAGE_NAME_WITH_TAG} pushed to Docker Hub."
-                    }
-                    echo 'Docker Hub push process finished.'
-                }
-            }
-
-            post {
-                always {
-                    // Always logout after push attempt for this stage
-                    echo 'Logging out from Docker Hub...'
-                    sh 'docker logout'
-                }
-            }
-        }
-
         stage('Deploy to Development') {
             when {
                 branch 'development'
@@ -161,20 +159,25 @@ pipeline {
                 branch "${MAIN_BRANCH_NAME}"
             }
             steps {
-                echo "Deploying image ${env.IMAGE_NAME_WITH_TAG} to Staging Server..."
+                echo "Starting deployment to Staging Server..."
 
-                echo 'Copying Ansible files from VM to workspace...'
-                // --- NEW STEP ---
-                // Copy Ansible files from the VM's home directory into the current workspace
-                sh 'cp /ansible-files/deploy.yml . && cp /ansible-files/inventory.ini . && cp /ansible-files/.env.j2 . && cp /ansible-files/nginx.conf.j2 . && cp -r /ansible-files/group_vars .'
-
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USERNAME', passwordVariable: 'DOCKERHUB_PASSWORD')]) {
-                    echo 'Preparing Ansible extra vars...'
-                     sh """
-                        ansible-playbook -i inventory.ini deploy.yml --extra-vars 'image_tag_from_jenkins=${env.IMAGE_NAME_WITH_TAG} docker_user=${DOCKERHUB_USERNAME} docker_password=${DOCKERHUB_PASSWORD}'
-                    """
+                dir('ansible'){
+                    echo 'Running Ansible playbook for staging deployment...'
+                    sh 'ansible-playbook -i inventory.ini deploy.yml --limit staging'
                 }
-            // Add your deployment commands here
+                
+                script {
+                    sendDiscordNotification(
+                        'DEPLOYMENT',
+                        '3447003',
+                        '🚀 Deployed to Staging',
+                        [
+                            '🌐 Environment': 'Staging',
+                            '🔗 Application URL': "[Visit Staging Site](${env.STAGING_URL})",
+                            '✅ Status': 'Deployment completed successfully'
+                        ]
+                    )
+                }
             }
         }
 
@@ -185,6 +188,24 @@ pipeline {
             steps {
                 input 'Deploy to Production?'
                 echo 'Deploying to the Production server...'
+                dir('ansible'){
+                    echo 'Running Ansible playbook for production deployment...'
+                    sh 'ansible-playbook -i inventory.ini deploy.yml --limit production'
+                }
+                
+                script {
+                    sendDiscordNotification(
+                        'DEPLOYMENT',
+                        '2067276',
+                        '🎉 Deployed to Production',
+                        [
+                            '🌐 Environment': 'Production',
+                            '🔗 Application URL': "[Visit Production Site](${env.PRODUCTION_URL})",
+                            '🏷️ Version': "${env.TAG_NAME}",
+                            '✅ Status': 'Deployment completed successfully'
+                        ]
+                    )
+                }
             }
         }
     }
@@ -200,12 +221,33 @@ pipeline {
         }
         success {
             script {
-                sendDiscordNotification('SUCCESS', '3066993', 'The build completed successfully.')
+                def message = '✅ Build completed successfully'
+                if (env.BRANCH_NAME == env.MAIN_BRANCH_NAME) {
+                    message += ' and deployed to staging'
+                } else if (env.TAG_NAME) {
+                    message += ' and deployed to production'
+                }
+                
+                sendDiscordNotification(
+                    'SUCCESS',
+                    '3066993',
+                    '✅ Build Successful',
+                    [
+                        '📝 Status': message
+                    ]
+                )
             }
         }
         failure {
             script {
-                sendDiscordNotification('FAILURE', '15158332', 'The build failed.')
+                sendDiscordNotification(
+                    'FAILURE',
+                    '15158332',
+                    '❌ Build Failed',
+                    [
+                        '⚠️ Action Required': 'Please check the build logs and fix the issues'
+                    ]
+                )
             }
         }
     }
