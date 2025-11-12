@@ -1,35 +1,35 @@
 def sendDiscordNotification(String buildStatus, String colorCode, String title, Map details = [:]) {
     withCredentials([string(credentialsId: 'discord-webhook-url', variable: 'WEBHOOK_URL')]) {
         def fields = []
-        
+
         // Add build information
         fields.add([
-            name: "📦 Build",
+            name: '📦 Build',
             value: "${currentBuild.fullDisplayName}",
             inline: true
         ])
-        
+
         fields.add([
-            name: "🌿 Branch/Tag",
+            name: '🌿 Branch/Tag',
             value: "${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}",
             inline: true
         ])
-        
+
         fields.add([
-            name: "⏱️ Duration",
+            name: '⏱️ Duration',
             value: "${currentBuild.durationString.replace(' and counting', '')}",
             inline: true
         ])
-        
+
         // Add stage information if failed
         if (buildStatus == 'FAILURE' && env.STAGE_NAME) {
             fields.add([
-                name: "❌ Failed Stage",
+                name: '❌ Failed Stage',
                 value: "${env.STAGE_NAME}",
                 inline: false
             ])
         }
-        
+
         // Add custom details passed to the function
         details.each { key, value ->
             fields.add([
@@ -38,25 +38,25 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
                 inline: false
             ])
         }
-        
+
         // Add error details if available
         if (buildStatus == 'FAILURE' && currentBuild.rawBuild.getLog(10)) {
             def logLines = currentBuild.rawBuild.getLog(10).join('\n')
-            def truncatedLog = logLines.length() > 1000 ? logLines.substring(0, 1000) + "..." : logLines
+            def truncatedLog = logLines.length() > 1000 ? logLines.substring(0, 1000) + '...' : logLines
             fields.add([
-                name: "📋 Error Log (Last 10 lines)",
+                name: '📋 Error Log (Last 10 lines)',
                 value: "```${truncatedLog}```",
                 inline: false
             ])
         }
-        
+
         // Add links
         fields.add([
-            name: "🔗 Links",
+            name: '🔗 Links',
             value: "[Build Console](${env.BUILD_URL}console) | [Changes](${env.BUILD_URL}changes)",
             inline: false
         ])
-        
+
         def payload = """
         {
           "embeds": [{
@@ -71,7 +71,7 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
           }]
         }
         """
-        
+
         sh """
             curl -X POST -H 'Content-Type: application/json' \
             -d '${payload.replaceAll("'", "'\\''")}' \
@@ -91,6 +91,8 @@ pipeline {
         MAIN_BRANCH_NAME = 'main'
         STAGING_URL = 'http://staging.testproject.pipeworker.me/'
         PRODUCTION_URL = 'http://production.testproject.pipeworker.me/'
+        // Define the path on the Jenkins controller/agent VM where your Ansible project lives
+        ANSIBLE_PROJECT_PATH = '/home/azureuser/ansible-projects/laravel-test-project'
     }
 
     stages {
@@ -159,24 +161,17 @@ pipeline {
                 branch "${MAIN_BRANCH_NAME}"
             }
             steps {
-                echo "Starting deployment to Staging Server..."
+                echo 'Deploying to Staging...'
 
-                dir('ansible'){
-                    echo 'Running Ansible playbook for staging deployment...'
-                    sh 'ansible-playbook -i inventory.ini deploy.yml --limit staging'
-                }
-                
-                script {
-                    sendDiscordNotification(
-                        'DEPLOYMENT',
-                        '3447003',
-                        '🚀 Deployed to Staging',
-                        [
-                            '🌐 Environment': 'Staging',
-                            '🔗 Application URL': "[Visit Staging Site](${env.STAGING_URL})",
-                            '✅ Status': 'Deployment completed successfully'
-                        ]
-                    )
+                sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/* ."
+
+                // Use the Jenkins credential for the vault password
+                withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
+                    sh """
+                        echo \$VAULT_PASS > .vault_pass.txt
+                        ansible-playbook -i inventory.ini deploy.yml --limit staging --vault-password-file .vault_pass.txt
+                        rm .vault_pass.txt
+                    """
                 }
             }
         }
@@ -187,24 +182,16 @@ pipeline {
             }
             steps {
                 input 'Deploy to Production?'
-                echo 'Deploying to the Production server...'
-                dir('ansible'){
-                    echo 'Running Ansible playbook for production deployment...'
-                    sh 'ansible-playbook -i inventory.ini deploy.yml --limit production'
-                }
-                
-                script {
-                    sendDiscordNotification(
-                        'DEPLOYMENT',
-                        '2067276',
-                        '🎉 Deployed to Production',
-                        [
-                            '🌐 Environment': 'Production',
-                            '🔗 Application URL': "[Visit Production Site](${env.PRODUCTION_URL})",
-                            '🏷️ Version': "${env.TAG_NAME}",
-                            '✅ Status': 'Deployment completed successfully'
-                        ]
-                    )
+                echo 'Deploying to Production...'
+
+                sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/* ."
+
+                withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
+                    sh """
+                        echo \$VAULT_PASS > .vault_pass.txt
+                        ansible-playbook -i inventory.ini deploy.yml --limit production --vault-password-file .vault_pass.txt
+                        rm .vault_pass.txt
+                    """
                 }
             }
         }
@@ -227,7 +214,7 @@ pipeline {
                 } else if (env.TAG_NAME) {
                     message += ' and deployed to production'
                 }
-                
+
                 sendDiscordNotification(
                     'SUCCESS',
                     '3066993',
