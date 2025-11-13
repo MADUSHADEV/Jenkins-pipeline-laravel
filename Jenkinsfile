@@ -145,292 +145,59 @@ def sendEmailNotification(String buildStatus, String subject) {
         def commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
         def commitEmail = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
         def commitMessage = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
-        def commitHash = sh(script: "git log -1 --pretty=format:'%h'", returnStdout: true).trim()
-
-        // Get Jenkins user who triggered the build
-        def triggeredBy = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
-        def jenkinsUser = 'Automated'
-        if (triggeredBy) {
-            jenkinsUser = triggeredBy[0]?.userId ?: 'Automated'
-        } else {
-            def scmTrigger = currentBuild.getBuildCauses('hudson.triggers.SCMTrigger$SCMTriggerCause')
-            if (scmTrigger) {
-                jenkinsUser = 'SCM Change'
-            }
-            def timerTrigger = currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause')
-            if (timerTrigger) {
-                jenkinsUser = 'Scheduled Build'
-            }
-        }
 
         // --- Recipient List ---
         def recipientList = "${commitEmail},${env.STAKEHOLDER_EMAILS}"
         echo "Preparing to send email to: ${recipientList}"
 
-        // --- Status Color and Icon ---
-        def statusColor = buildStatus == 'SUCCESS' ? '#10B981' : '#EF4444'
-        def statusBgColor = buildStatus == 'SUCCESS' ? '#D1FAE5' : '#FEE2E2'
-        def statusIcon = buildStatus == 'SUCCESS' ? '✅' : '❌'
-        def statusText = buildStatus == 'SUCCESS' ? 'Success' : 'Failed'
+        // ======================= NEW PART =======================
+        // Create a variable to hold our error details. It will be empty on success.
+        def errorDetails = ''
 
-        // --- Error Details Section ---
-        def errorSection = ''
+        // If the build failed, grab the last 20 lines of the log.
         if (buildStatus == 'FAILURE') {
             def logLines = currentBuild.rawBuild.getLog(20).join('\n')
             def truncatedLog = logLines.length() > 1500 ? logLines.substring(0, 1500) + '...' : logLines
+
+            // IMPORTANT: Escape HTML characters in the log to prevent breaking the email format.
             def safeLog = truncatedLog.replace('<', '&lt;').replace('>', '&gt;')
 
-            errorSection = """
-            <div style="margin-top: 30px; background: #FEF2F2; border-left: 4px solid #DC2626; padding: 20px; border-radius: 8px;">
-                <h3 style="margin: 0 0 15px 0; color: #991B1B; font-size: 16px; font-weight: 600;">
-                    🔍 Error Details
-                </h3>
-                <pre style="background: #FFF; border: 1px solid #FCA5A5; padding: 15px; border-radius: 6px; overflow-x: auto; margin: 0; font-size: 13px; line-height: 1.6; color: #374151;"><code>${safeLog}</code></pre>
-            </div>
+            // Format the log into a nice HTML block. <pre> preserves whitespace and newlines.
+            errorDetails = """
+            <h3>📋 Error Log (Last 20 Lines):</h3>
+            <pre style="background-color:#f1f1f1; border:1px solid #ccc; padding:10px; border-radius:5px;"><code>${safeLog}</code></pre>
             """
         }
+        // ===================== END NEW PART =====================
 
-        // --- Success Deployment Info ---
-        def deploymentSection = ''
-        if (buildStatus == 'SUCCESS') {
-            def environment = ''
-            def deploymentUrl = ''
-
-            if (env.BRANCH_NAME == env.MAIN_BRANCH_NAME) {
-                environment = 'Staging'
-                deploymentUrl = env.STAGING_URL
-            } else if (env.TAG_NAME) {
-                environment = 'Production'
-                deploymentUrl = env.PRODUCTION_URL
-            }
-
-            if (environment) {
-                deploymentSection = """
-                <div style="margin-top: 30px; background: #ECFDF5; border-left: 4px solid #10B981; padding: 20px; border-radius: 8px;">
-                    <h3 style="margin: 0 0 15px 0; color: #065F46; font-size: 16px; font-weight: 600;">
-                        🚀 Deployment Information
-                    </h3>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr>
-                            <td style="padding: 10px 0; color: #6B7280; font-size: 14px; width: 150px;">
-                                <strong>Environment:</strong>
-                            </td>
-                            <td style="padding: 10px 0; color: #111827; font-size: 14px;">
-                                <span style="background: #10B981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">
-                                    ${environment}
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td style="padding: 10px 0; color: #6B7280; font-size: 14px;">
-                                <strong>Application URL:</strong>
-                            </td>
-                            <td style="padding: 10px 0; font-size: 14px;">
-                                <a href="${deploymentUrl}" style="color: #2563EB; text-decoration: none; font-weight: 500;">
-                                    ${deploymentUrl}
-                                </a>
-                            </td>
-                        </tr>
-                    </table>
-                </div>
-                """
-            }
-        }
-
-        // --- Email Body with Modern Design ---
+        // --- Email Body ---
         def emailBody = """
-        <!DOCTYPE html>
         <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #F3F4F6;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F3F4F6; padding: 40px 0;">
-                <tr>
-                    <td align="center">
-                        <!-- Main Container -->
-                        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #FFFFFF; border-radius: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); overflow: hidden;">
+        <body>
+          <h2>Build Status: <font color="${buildStatus == 'SUCCESS' ? 'green' : 'red'}">${buildStatus}</font></h2>
+          <p>
+            The pipeline for <b>${currentBuild.fullDisplayName}</b> has completed.
+          </p>
+          <hr>
+          <h3>Build Details:</h3>
+          <ul>
+            <li><b>Status:</b> ${buildStatus}</li>
+            <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+            <li><b>Branch/Tag:</b> ${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}</li>
+          </ul>
+          <h3>Commit Details:</h3>
+          <ul>
+            <li><b>Author:</b> ${commitAuthor}</li>
+            <li><b>Commit Message:</b> <i>${commitMessage}</i></li>
+          </ul>
 
-                            <!-- Header with Status Banner -->
-                            <tr>
-                                <td style="background: linear-gradient(135deg, ${statusColor} 0%, ${statusColor}dd 100%); padding: 40px 40px 30px 40px; text-align: center;">
-                                    <div style="font-size: 48px; margin-bottom: 10px;">${statusIcon}</div>
-                                    <h1 style="margin: 0; color: #FFFFFF; font-size: 28px; font-weight: 700; letter-spacing: -0.5px;">
-                                        Build ${statusText}
-                                    </h1>
-                                    <p style="margin: 10px 0 0 0; color: #FFFFFF; font-size: 16px; opacity: 0.95;">
-                                        ${currentBuild.fullDisplayName}
-                                    </p>
-                                </td>
-                            </tr>
+          <!-- This line will now insert our error block, but only on failure -->
+          ${errorDetails}
 
-                            <!-- Content Section -->
-                            <tr>
-                                <td style="padding: 40px;">
-
-                                    <!-- Build Status Card -->
-                                    <div style="background: ${statusBgColor}; padding: 20px; border-radius: 12px; margin-bottom: 30px; border: 1px solid ${statusColor}33;">
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="padding: 8px 0;">
-                                                    <span style="color: #6B7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Status</span>
-                                                </td>
-                                                <td align="right" style="padding: 8px 0;">
-                                                    <span style="background: ${statusColor}; color: white; padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-                                                        ${statusText}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0;">
-                                                    <span style="color: #6B7280; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;">Duration</span>
-                                                </td>
-                                                <td align="right" style="padding: 8px 0;">
-                                                    <span style="color: #111827; font-size: 14px; font-weight: 600;">
-                                                        ${currentBuild.durationString.replace(' and counting', '')}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-
-                                    <!-- Build Information -->
-                                    <div style="margin-bottom: 30px;">
-                                        <h2 style="margin: 0 0 20px 0; color: #111827; font-size: 18px; font-weight: 600; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px;">
-                                            📦 Build Information
-                                        </h2>
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px; width: 180px;">
-                                                    <strong>Branch/Tag:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px;">
-                                                    <span style="background: #E0E7FF; color: #3730A3; padding: 4px 12px; border-radius: 6px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px;">
-                                                        ${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px;">
-                                                    <strong>Triggered By:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px; font-weight: 500;">
-                                                    ${jenkinsUser}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px;">
-                                                    <strong>Build Number:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px; font-weight: 500;">
-                                                    #${env.BUILD_NUMBER}
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-
-                                    <!-- Commit Information -->
-                                    <div style="margin-bottom: 30px;">
-                                        <h2 style="margin: 0 0 20px 0; color: #111827; font-size: 18px; font-weight: 600; border-bottom: 2px solid #E5E7EB; padding-bottom: 10px;">
-                                            💬 Commit Details
-                                        </h2>
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px; width: 180px;">
-                                                    <strong>Author:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px; font-weight: 500;">
-                                                    ${commitAuthor}
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px;">
-                                                    <strong>Email:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px;">
-                                                    <a href="mailto:${commitEmail}" style="color: #2563EB; text-decoration: none;">
-                                                        ${commitEmail}
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px;">
-                                                    <strong>Commit Hash:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px;">
-                                                    <span style="background: #F3F4F6; padding: 4px 10px; border-radius: 6px; font-family: 'Monaco', 'Courier New', monospace; font-size: 13px;">
-                                                        ${commitHash}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 12px 0; color: #6B7280; font-size: 14px; vertical-align: top;">
-                                                    <strong>Message:</strong>
-                                                </td>
-                                                <td style="padding: 12px 0; color: #111827; font-size: 14px; line-height: 1.6;">
-                                                    <em>"${commitMessage}"</em>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-
-                                    <!-- Deployment Section (Success Only) -->
-                                    ${deploymentSection}
-
-                                    <!-- Error Section (Failure Only) -->
-                                    ${errorSection}
-
-                                    <!-- Action Buttons -->
-                                    <div style="margin-top: 40px; text-align: center;">
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td align="center" style="padding: 0 10px;">
-                                                    <a href="${env.BUILD_URL}" style="display: inline-block; background: #2563EB; color: #FFFFFF; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.3);">
-                                                        📊 View Build Details
-                                                    </a>
-                                                </td>
-                                                <td align="center" style="padding: 0 10px;">
-                                                    <a href="${env.BUILD_URL}console" style="display: inline-block; background: #F3F4F6; color: #374151; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; border: 1px solid #D1D5DB;">
-                                                        🖥️ Console Output
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                        </table>
-                                    </div>
-
-                                </td>
-                            </tr>
-
-                            <!-- Footer -->
-                            <tr>
-                                <td style="background: #F9FAFB; padding: 30px 40px; border-top: 1px solid #E5E7EB;">
-                                    <table width="100%" cellpadding="0" cellspacing="0">
-                                        <tr>
-                                            <td align="center">
-                                                <p style="margin: 0 0 8px 0; color: #6B7280; font-size: 13px;">
-                                                    Jenkins CI/CD Pipeline
-                                                </p>
-                                                <p style="margin: 0; color: #9CA3AF; font-size: 12px;">
-                                                    ${new Date().format("EEEE, MMMM dd, yyyy 'at' hh:mm a", TimeZone.getDefault())}
-                                                </p>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td align="center" style="padding-top: 15px;">
-                                                <p style="margin: 0; color: #9CA3AF; font-size: 11px;">
-                                                    This is an automated message from Jenkins. Please do not reply to this email.
-                                                </p>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </td>
-                            </tr>
-
-                        </table>
-                    </td>
-                </tr>
-            </table>
+          <hr>
+          <p>
+            Please check the <a href="${env.BUILD_URL}console">Console Output</a> for the full logs.
+          </p>
         </body>
         </html>
         """
