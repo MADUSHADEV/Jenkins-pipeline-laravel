@@ -2,6 +2,55 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
     withCredentials([string(credentialsId: 'discord-webhook-url', variable: 'WEBHOOK_URL')]) {
         def fields = []
 
+        // Get commit author information
+        def commitAuthor = 'N/A'
+        def commitEmail = 'N/A'
+        def commitMessage = 'N/A'
+        try {
+            commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
+            commitEmail = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
+            commitMessage = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
+        } catch (Exception e) {
+            echo "Could not retrieve git information: ${e.message}"
+        }
+
+        // Get Jenkins user who triggered the build
+        def triggeredBy = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
+        def jenkinsUser = 'Automated'
+        if (triggeredBy) {
+            jenkinsUser = triggeredBy[0]?.userId ?: 'Automated'
+        } else {
+            // Check for SCM trigger
+            def scmTrigger = currentBuild.getBuildCauses('hudson.triggers.SCMTrigger$SCMTriggerCause')
+            if (scmTrigger) {
+                jenkinsUser = 'SCM Change'
+            }
+            // Check for timer trigger
+            def timerTrigger = currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause')
+            if (timerTrigger) {
+                jenkinsUser = 'Scheduled Build'
+            }
+        }
+
+        // Add user information
+        fields.add([
+            name: '👤 Commit Author',
+            value: "${commitAuthor}",
+            inline: true
+        ])
+
+        fields.add([
+            name: '🔧 Triggered By',
+            value: "${jenkinsUser}",
+            inline: true
+        ])
+
+        fields.add([
+            name: '📧 Email',
+            value: "${commitEmail}",
+            inline: true
+        ])
+
         // Add build information
         fields.add([
             name: '📦 Build',
@@ -20,6 +69,16 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
             value: "${currentBuild.durationString.replace(' and counting', '')}",
             inline: true
         ])
+
+        // Add commit message
+        if (commitMessage != 'N/A' && commitMessage.length() > 0) {
+            def truncatedMessage = commitMessage.length() > 100 ? commitMessage.substring(0, 100) + '...' : commitMessage
+            fields.add([
+                name: '💬 Commit Message',
+                value: truncatedMessage,
+                inline: false
+            ])
+        }
 
         // Add stage information if failed
         if (buildStatus == 'FAILURE' && env.STAGE_NAME) {
@@ -154,7 +213,19 @@ pipeline {
             }
             steps {
                 echo 'Deploying to Development Server...'
-            // Add your deployment commands here
+
+                script {
+                    sendDiscordNotification(
+                        'DEPLOYMENT',
+                        '3447003',
+                        '🚀 Deployed to Staging',
+                        [
+                            '🌐 Environment': 'Staging',
+                            '🔗 Application URL': "[Visit Staging Site](${env.STAGING_URL})",
+                            '✅ Status': 'Deployment completed successfully'
+                        ]
+                    )
+                }
             }
         }
 
@@ -194,6 +265,7 @@ pipeline {
                         """
                     }
                 }
+
             }
         }
 
