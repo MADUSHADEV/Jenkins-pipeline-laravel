@@ -142,9 +142,17 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
 def sendEmailNotification(String buildStatus, String subject) {
     try {
         // --- Information Gathering ---
-        def commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
-        def commitEmail = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
-        def commitMessage = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
+        def commitAuthor = 'N/A'
+        def commitEmail = 'N/A'
+        def commitMessage = 'N/A'
+
+        try {
+            commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
+            commitEmail = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
+            commitMessage = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
+        } catch (Exception e) {
+            echo "Could not retrieve git information: ${e.message}"
+        }
 
         // Get Jenkins user who triggered the build
         def triggeredBy = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
@@ -165,134 +173,132 @@ def sendEmailNotification(String buildStatus, String subject) {
         // Create error details section
         def errorDetails = ''
         if (buildStatus == 'FAILURE') {
-            def logLines = currentBuild.rawBuild.getLog(20).join('\n')
-            def truncatedLog = logLines.length() > 1500 ? logLines.substring(0, 1500) + '...' : logLines
-            def safeLog = truncatedLog.replace('<', '&lt;').replace('>', '&gt;')
+            try {
+                def logLines = currentBuild.rawBuild.getLog(15).join('\n')
+                def truncatedLog = logLines.length() > 1000 ? logLines.substring(0, 1000) + '...' : logLines
+                def safeLog = truncatedLog.replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 
-            errorDetails = """
-            <div style="margin-top: 20px; padding: 15px; background-color: #fef2f2; border-left: 4px solid #ef4444; border-radius: 6px;">
-                <h3 style="margin-top: 0; color: #991b1b; font-size: 16px;">📋 Error Log (Last 20 Lines)</h3>
-                <pre style="background-color: #ffffff; border: 1px solid #fecaca; padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 12px; line-height: 1.5; color: #374151;"><code>${safeLog}</code></pre>
-            </div>
-            """
+                errorDetails = """
+                <div style="margin-top: 20px; padding: 15px; background-color: #fee2e2; border-left: 4px solid #ef4444; border-radius: 4px;">
+                    <h3 style="margin-top: 0; color: #991b1b; font-size: 14px;">Error Log</h3>
+                    <pre style="background-color: #ffffff; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 11px; line-height: 1.4; color: #374151; white-space: pre-wrap; word-wrap: break-word;"><code>${safeLog}</code></pre>
+                </div>
+                """
+            } catch (Exception e) {
+                echo "Could not retrieve error logs: ${e.message}"
+            }
         }
 
-        // --- Email Body with Beautiful Styling ---
+        // --- Simplified Email Body ---
         def emailBody = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 40px 0;">
-                <tr>
-                    <td align="center">
-                        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
-                            <!-- Header -->
-                            <tr>
-                                <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 40px; text-align: center;">
-                                    <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Jenkins CI/CD Pipeline</h1>
-                                    <p style="margin: 8px 0 0 0; color: #e0e7ff; font-size: 14px;">Automated Build Notification</p>
-                                </td>
-                            </tr>
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                </head>
+                <body style="margin: 0; padding: 20px; font-family: Arial, sans-serif; background-color: #f5f5f5;">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                        <!-- Header -->
+                        <tr>
+                            <td style="background-color: #667eea; padding: 20px; text-align: center;">
+                                <h1 style="margin: 0; color: #ffffff; font-size: 24px;">Jenkins CI/CD Pipeline</h1>
+                            </td>
+                        </tr>
 
-                            <!-- Status Badge -->
-                            <tr>
-                                <td style="padding: 30px 40px 0 40px; text-align: center;">
-                                    <div style="display: inline-block; background-color: ${statusBgColor}; color: ${statusColor}; padding: 12px 24px; border-radius: 6px; font-size: 18px; font-weight: 600;">
-                                        ${statusIcon} Build ${buildStatus}
-                                    </div>
-                                </td>
-                            </tr>
+                        <!-- Status Badge -->
+                        <tr>
+                            <td style="padding: 20px; text-align: center;">
+                                <div style="display: inline-block; background-color: ${statusBgColor}; color: ${statusColor}; padding: 10px 20px; border-radius: 4px; font-size: 16px; font-weight: bold;">
+                                    ${statusIcon} Build ${buildStatus}
+                                </div>
+                            </td>
+                        </tr>
 
-                            <!-- Main Content -->
-                            <tr>
-                                <td style="padding: 30px 40px;">
-                                    <p style="margin: 0 0 20px 0; color: #6b7280; font-size: 14px; line-height: 1.6;">
-                                        The pipeline for <strong>${currentBuild.fullDisplayName}</strong> has completed.
-                                    </p>
+                        <!-- Content -->
+                        <tr>
+                            <td style="padding: 0 20px 20px 20px;">
+                                <p style="margin: 0 0 15px 0; color: #666666; font-size: 14px;">
+                                    Pipeline: <strong>${currentBuild.fullDisplayName}</strong>
+                                </p>
 
-                                    <!-- Build Information Card -->
-                                    <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #e5e7eb;">
-                                        <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 16px; font-weight: 600;">📦 Build Information</h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 40%;">Status:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${buildStatus}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Build Number:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">#${currentBuild.number}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Branch/Tag:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Duration:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${currentBuild.durationString.replace(' and counting', '')}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Triggered By:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${jenkinsUser}</td>
-                                            </tr>
-                                        </table>
-                                    </div>
+                                <!-- Build Info -->
+                                <table width="100%" cellpadding="8" cellspacing="0" style="background-color: #f9fafb; border-radius: 4px; margin-bottom: 15px;">
+                                    <tr>
+                                        <td colspan="2" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+                                            <strong style="color: #111827;">Build Information</strong>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280; width: 40%;">Status:</td>
+                                        <td style="color: #111827;"><strong>${buildStatus}</strong></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280;">Build Number:</td>
+                                        <td style="color: #111827;">#${currentBuild.number}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280;">Branch/Tag:</td>
+                                        <td style="color: #111827;">${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280;">Duration:</td>
+                                        <td style="color: #111827;">${currentBuild.durationString.replace(' and counting', '')}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280;">Triggered By:</td>
+                                        <td style="color: #111827;">${jenkinsUser}</td>
+                                    </tr>
+                                </table>
 
-                                    <!-- Commit Information Card -->
-                                    <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #e5e7eb;">
-                                        <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 16px; font-weight: 600;">💬 Commit Details</h3>
-                                        <table width="100%" cellpadding="0" cellspacing="0">
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px; width: 40%;">Author:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${commitAuthor}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Email:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${commitEmail}</td>
-                                            </tr>
-                                            <tr>
-                                                <td style="padding: 8px 0; color: #6b7280; font-size: 14px; vertical-align: top;">Message:</td>
-                                                <td style="padding: 8px 0; color: #111827; font-size: 14px; font-style: italic;">${commitMessage}</td>
-                                            </tr>
-                                        </table>
-                                    </div>
+                                <!-- Commit Info -->
+                                <table width="100%" cellpadding="8" cellspacing="0" style="background-color: #f9fafb; border-radius: 4px; margin-bottom: 15px;">
+                                    <tr>
+                                        <td colspan="2" style="padding: 10px; border-bottom: 1px solid #e5e7eb;">
+                                            <strong style="color: #111827;">Commit Details</strong>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280; width: 40%;">Author:</td>
+                                        <td style="color: #111827;">${commitAuthor}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280;">Email:</td>
+                                        <td style="color: #111827;">${commitEmail}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="color: #6b7280; vertical-align: top;">Message:</td>
+                                        <td style="color: #111827; font-style: italic;">${commitMessage}</td>
+                                    </tr>
+                                </table>
 
-                                    ${errorDetails}
+                                ${errorDetails}
 
-                                    <!-- Action Button -->
-                                    <div style="text-align: center; margin: 30px 0 20px 0;">
-                                        <a href="${env.BUILD_URL}console" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-size: 14px; font-weight: 600; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.4);">
-                                            View Console Output
-                                        </a>
-                                    </div>
+                                <!-- Button -->
+                                <div style="text-align: center; margin: 20px 0;">
+                                    <a href="${env.BUILD_URL}console" style="display: inline-block; background-color: #667eea; color: #ffffff; text-decoration: none; padding: 10px 24px; border-radius: 4px; font-size: 14px; font-weight: bold;">
+                                        View Console Output
+                                    </a>
+                                </div>
 
-                                    <!-- Additional Links -->
-                                    <div style="text-align: center; margin-top: 20px;">
-                                        <a href="${env.BUILD_URL}" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 10px;">Build Details</a>
-                                        <span style="color: #d1d5db;">|</span>
-                                        <a href="${env.BUILD_URL}changes" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 10px;">View Changes</a>
-                                    </div>
-                                </td>
-                            </tr>
+                                <!-- Links -->
+                                <div style="text-align: center; margin-top: 15px; font-size: 13px;">
+                                    <a href="${env.BUILD_URL}" style="color: #667eea; text-decoration: none; margin: 0 10px;">Build Details</a> |
+                                    <a href="${env.BUILD_URL}changes" style="color: #667eea; text-decoration: none; margin: 0 10px;">View Changes</a>
+                                </div>
+                            </td>
+                        </tr>
 
-                            <!-- Footer -->
-                            <tr>
-                                <td style="background-color: #f9fafb; padding: 20px 40px; text-align: center; border-top: 1px solid #e5e7eb;">
-                                    <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.6;">
-                                        This is an automated message from Jenkins CI/CD Pipeline<br>
-                                        Generated on ${new Date().format('MMMM dd, yyyy HH:mm:ss', TimeZone.getDefault())}
-                                    </p>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </body>
-        </html>
+                        <!-- Footer -->
+                        <tr>
+                            <td style="background-color: #f9fafb; padding: 15px; text-align: center; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af;">
+                                Jenkins CI/CD Pipeline<br>
+                                ${new Date().format('yyyy-MM-dd HH:mm:ss')}
+                            </td>
+                        </tr>
+                    </table>
+                </body>
+                </html>
         """
 
         // --- Send the Email ---
@@ -303,10 +309,15 @@ def sendEmailNotification(String buildStatus, String subject) {
             body: emailBody,
             mimeType: 'text/html'
         )
+
+        echo "Email notification sent successfully to: ${recipientList}"
     } catch (Exception e) {
         echo "Warning: Could not send email notification. Error: ${e.message}"
+        e.printStackTrace()
     }
 }
+
+// ...existing code...
 
 pipeline {
     agent {
