@@ -231,7 +231,7 @@ pipeline {
         STAGING_HOST_IP = '20.244.45.25' // Your Azure VM IP
         STAGING_HOST_USER = 'azureuser'   // Your Azure VM User
         SENDER_EMAIL = 'pipeworker@algowrite.com'
-        STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com, madusha.dev001@gmail.com'
+        STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com'
     }
 
     stages {
