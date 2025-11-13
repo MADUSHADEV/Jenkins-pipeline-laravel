@@ -139,6 +139,82 @@ def sendDiscordNotification(String buildStatus, String colorCode, String title, 
     }
 }
 
+def sendEmailNotification(String buildStatus, String subject) {
+    try {
+        // --- Information Gathering ---
+        def commitAuthor = sh(script: "git log -1 --pretty=format:'%an'", returnStdout: true).trim()
+        def commitEmail = sh(script: "git log -1 --pretty=format:'%ae'", returnStdout: true).trim()
+        def commitMessage = sh(script: "git log -1 --pretty=format:'%s'", returnStdout: true).trim()
+
+        // --- Recipient List ---
+        def recipientList = "${commitEmail},${env.STAKEHOLDER_EMAILS}"
+        echo "Preparing to send email to: ${recipientList}"
+
+        // ======================= NEW PART =======================
+        // Create a variable to hold our error details. It will be empty on success.
+        def errorDetails = ''
+
+        // If the build failed, grab the last 20 lines of the log.
+        if (buildStatus == 'FAILURE') {
+            def logLines = currentBuild.rawBuild.getLog(20).join('\n')
+            def truncatedLog = logLines.length() > 1500 ? logLines.substring(0, 1500) + '...' : logLines
+
+            // IMPORTANT: Escape HTML characters in the log to prevent breaking the email format.
+            def safeLog = truncatedLog.replace('<', '&lt;').replace('>', '&gt;')
+
+            // Format the log into a nice HTML block. <pre> preserves whitespace and newlines.
+            errorDetails = """
+            <h3>📋 Error Log (Last 20 Lines):</h3>
+            <pre style="background-color:#f1f1f1; border:1px solid #ccc; padding:10px; border-radius:5px;"><code>${safeLog}</code></pre>
+            """
+        }
+        // ===================== END NEW PART =====================
+
+        // --- Email Body ---
+        def emailBody = """
+        <html>
+        <body>
+          <h2>Build Status: <font color="${buildStatus == 'SUCCESS' ? 'green' : 'red'}">${buildStatus}</font></h2>
+          <p>
+            The pipeline for <b>${currentBuild.fullDisplayName}</b> has completed.
+          </p>
+          <hr>
+          <h3>Build Details:</h3>
+          <ul>
+            <li><b>Status:</b> ${buildStatus}</li>
+            <li><b>Build URL:</b> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></li>
+            <li><b>Branch/Tag:</b> ${env.BRANCH_NAME ?: env.TAG_NAME ?: 'N/A'}</li>
+          </ul>
+          <h3>Commit Details:</h3>
+          <ul>
+            <li><b>Author:</b> ${commitAuthor}</li>
+            <li><b>Commit Message:</b> <i>${commitMessage}</i></li>
+          </ul>
+
+          <!-- This line will now insert our error block, but only on failure -->
+          ${errorDetails}
+
+          <hr>
+          <p>
+            Please check the <a href="${env.BUILD_URL}console">Console Output</a> for the full logs.
+          </p>
+        </body>
+        </html>
+        """
+
+        // --- Send the Email ---
+        emailext(
+            to: recipientList,
+            from: env.SENDER_EMAIL,
+            subject: subject,
+            body: emailBody,
+            mimeType: 'text/html'
+        )
+    } catch (Exception e) {
+        echo "Warning: Could not send email notification. Error: ${e.message}"
+    }
+}
+
 pipeline {
     agent {
         label 'laravel'
@@ -154,6 +230,8 @@ pipeline {
         ANSIBLE_PROJECT_PATH = '/ansible-files/ansible-projects/laravel-test-project'
         STAGING_HOST_IP = '20.244.45.25' // Your Azure VM IP
         STAGING_HOST_USER = 'azureuser'   // Your Azure VM User
+        SENDER_EMAIL = 'pipeworker@algowrite.com'
+        STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com, madusha.dev001@gmail.com'
     }
 
     stages {
@@ -207,6 +285,7 @@ pipeline {
             }
         }
 
+        // need to modify this stage to fit your development deployment strategy
         stage('Deploy to Development') {
             when {
                 branch 'development'
@@ -265,6 +344,19 @@ pipeline {
                         """
                     }
                 }
+
+                script {
+                    sendDiscordNotification(
+                        'DEPLOYMENT',
+                        '3447003',
+                        '🚀 Deployed to Staging',
+                        [
+                            '🌐 Environment': 'Staging',
+                            '🔗 Application URL': "[Visit Staging Site](${env.STAGING_URL})",
+                            '✅ Status': 'Deployment completed successfully'
+                        ]
+                    )
+                }
             }
         }
 
@@ -312,6 +404,8 @@ pipeline {
                         '📝 Status': message
                     ]
                 )
+
+                sendEmailNotification('SUCCESS', "✅ Success: ${currentBuild.fullDisplayName}")
             }
 
             echo 'Cleaning up workspace...'
@@ -327,6 +421,7 @@ pipeline {
                         '⚠️ Action Required': 'Please check the build logs and fix the issues'
                     ]
                 )
+                sendEmailNotification('FAILURE', "❌ FAILED: ${currentBuild.fullDisplayName}")
             }
             echo 'Cleaning up workspace...'
             cleanWs()
