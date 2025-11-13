@@ -265,7 +265,6 @@ pipeline {
                         """
                     }
                 }
-
             }
         }
 
@@ -295,9 +294,6 @@ pipeline {
             archiveArtifacts artifacts: 'test-results.xml', allowEmptyArchive: true
 
             junit 'test-results.xml'
-
-            echo 'Cleaning up workspace...'
-            cleanWs()
         }
         success {
             script {
@@ -317,6 +313,9 @@ pipeline {
                     ]
                 )
             }
+
+            echo 'Cleaning up workspace...'
+            cleanWs()
         }
         failure {
             script {
@@ -329,6 +328,8 @@ pipeline {
                     ]
                 )
             }
+            echo 'Cleaning up workspace...'
+            cleanWs()
         }
     }
 }
