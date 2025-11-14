@@ -419,6 +419,7 @@ pipeline {
             }
             steps {
                 echo 'Deploying to Staging (Host as Control Node Method)...'
+                input 'Deploy to Staging?'
 
                 // sshagent provides the SSH key for the ssh and scp commands below
                 sshagent(credentials: ['ansible-ssh-key']) {
@@ -473,14 +474,13 @@ pipeline {
                 input 'Deploy to Production?'
                 echo 'Deploying to Production...'
 
-                sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/* ."
+                sh "cp -a ${env.ANSIBLE_PROJECT_PATH}/. ."
 
                 sshagent(credentials: ['ansible-ssh-key']) {
                     withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
                         sh """
                         mkdir -p ~/.ssh
                         ssh-keyscan -H ${PRODUCTION_HOST_IP} >> ~/.ssh/known_hosts
-
 
                         echo \$VAULT_PASS > .vault_pass.txt
                         ansible-playbook -i inventory.ini deploy.yml --limit production --vault-password-file .vault_pass.txt
