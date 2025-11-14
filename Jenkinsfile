@@ -474,12 +474,27 @@ pipeline {
 
                 sh "cp -R ${env.ANSIBLE_PROJECT_PATH}/* ."
 
-                withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
-                    sh """
+                sshagent(credentials: ['ansible-ssh-key']) {
+                    withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
+                        sh """
                         echo \$VAULT_PASS > .vault_pass.txt
                         ansible-playbook -i inventory.ini deploy.yml --limit production --vault-password-file .vault_pass.txt
                         rm .vault_pass.txt
                     """
+                    }
+                }
+
+                script {
+                    sendDiscordNotification(
+                        'DEPLOYMENT',
+                        '3447003',
+                        '🚀 Deployed to Production',
+                        [
+                            '🌐 Environment': 'Production',
+                            '🔗 Application URL': "[Visit Production Site](${env.PRODUCTION_URL})",
+                            '✅ Status': 'Deployment completed successfully'
+                        ]
+                    )
                 }
             }
         }
