@@ -333,6 +333,7 @@ pipeline {
         // Define the path on the Jenkins controller/agent VM where your Ansible project lives
         ANSIBLE_PROJECT_PATH = '/ansible-files/ansible-projects/laravel-test-project'
         STAGING_HOST_IP = '20.244.45.25' // Your Azure VM IP
+        PRODUCTION_HOST_IP = '143.198.91.8' // Your Production Server IP
         STAGING_HOST_USER = 'azureuser'   // Your Azure VM User
         SENDER_EMAIL = 'pipeworker@algowrite.com'
         STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com'
@@ -477,6 +478,10 @@ pipeline {
                 sshagent(credentials: ['ansible-ssh-key']) {
                     withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
                         sh """
+                        mkdir -p ~/.ssh
+                        ssh-keyscan -H ${PRODUCTION_HOST_IP} >> ~/.ssh/known_hosts
+
+
                         echo \$VAULT_PASS > .vault_pass.txt
                         ansible-playbook -i inventory.ini deploy.yml --limit production --vault-password-file .vault_pass.txt
                         rm .vault_pass.txt
