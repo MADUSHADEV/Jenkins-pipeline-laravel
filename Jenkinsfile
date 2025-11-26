@@ -331,12 +331,12 @@ pipeline {
         STAGING_URL = 'http://staging.testproject.pipeworker.me/'
         PRODUCTION_URL = 'http://production.testproject.pipeworker.me/'
         // Define the path on the Jenkins controller/agent VM where your Ansible project lives
-        ANSIBLE_PROJECT_PATH = '/ansible-files/ansible-projects/laravel-test-project'
-        STAGING_HOST_IP = '20.244.45.25' // Your Azure VM IP
-        PRODUCTION_HOST_IP = '143.198.91.8' // Your Production Server IP
+        ANSIBLE_BASE_PATH = '/ansible-library'
+        PROJECT_DIR = 'laravel-test-project'
         STAGING_HOST_USER = 'azureuser'   // Your Azure VM User
         SENDER_EMAIL = 'pipeworker@algowrite.com'
         STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com'
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
     }
 
     stages {
@@ -425,28 +425,19 @@ pipeline {
                 sshagent(credentials: ['ansible-ssh-key']) {
                     withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
                         sh """
-                            # --- MODIFICATION ---
-                            # Point this variable to your existing, permanent directory.
-                            HOST_PROJECT_PATH="/home/${STAGING_HOST_USER}/ansible-projects/laravel-test-project"
-
-                            # Create the vault password file inside the container's workspace
                             echo \$VAULT_PASS > .vault_pass.txt
 
-                            # We don't need to 'mkdir' because the directory already exists.
+                            // Debug: Verify the container can see the specific files
+                            sh "ls -la ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}"
 
-                            # Copy the files from the container's workspace to the host's permanent directory.
-                            # The '/*' ensures we copy the contents into the target directory.
-                            # We also copy the vault pass file separately.
-                            scp -o StrictHostKeyChecking=no -r * ${STAGING_HOST_USER}@${STAGING_HOST_IP}:\${HOST_PROJECT_PATH}/
-                            scp -o StrictHostKeyChecking=no .vault_pass.txt ${STAGING_HOST_USER}@${STAGING_HOST_IP}:\${HOST_PROJECT_PATH}/
+                            # Run Ansible pointing to the specific subdirectory
+                            ansible-playbook \
+                                -i ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/inventory.ini \
+                                ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/deploy.yml \
+                                --limit staging \
+                                --vault-password-file .vault_pass.txt
 
-                            # SSH to the host and run ansible-playbook FROM your permanent directory
-                            ssh -o StrictHostKeyChecking=no ${STAGING_HOST_USER}@${STAGING_HOST_IP} "cd \${HOST_PROJECT_PATH} && ansible-playbook -i inventory.ini deploy.yml --limit staging --vault-password-file .vault_pass.txt"
-
-                            # Clean up the password file from the container's workspace
                             rm .vault_pass.txt
-
-                            # We should NOT clean up the host directory in this case.
                         """
                     }
                 }
@@ -479,12 +470,18 @@ pipeline {
                 sshagent(credentials: ['ansible-ssh-key']) {
                     withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
                         sh """
-                        mkdir -p ~/.ssh
-                        ssh-keyscan -H ${PRODUCTION_HOST_IP} >> ~/.ssh/known_hosts
+                            echo \$VAULT_PASS > .vault_pass.txt
 
-                        echo \$VAULT_PASS > .vault_pass.txt
-                        ansible-playbook -i inventory.ini deploy.yml --limit production --vault-password-file .vault_pass.txt
-                        rm .vault_pass.txt
+                            // Debug: Verify the container can see the specific files
+                            sh "ls -la ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}"
+
+                            ansible-playbook \
+                                -i ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/inventory.ini \
+                                ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/deploy.yml \
+                                --limit production \
+                                --vault-password-file .vault_pass.txt
+
+                            rm .vault_pass.txt
                     """
                     }
                 }
