@@ -427,7 +427,11 @@ pipeline {
                         sh """
                             echo \$VAULT_PASS > .vault_pass.txt
 
+                            // Debug: Verify the container can see the specific files
+                            sh "ls -la ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}"
+                            
                             # Run Ansible pointing to the specific subdirectory
+
                             ansible-playbook \
                                 -i ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/inventory.ini \
                                 ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/deploy.yml \
