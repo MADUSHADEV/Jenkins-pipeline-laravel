@@ -333,7 +333,6 @@ pipeline {
         // Define the path on the Jenkins controller/agent VM where your Ansible project lives
         ANSIBLE_BASE_PATH = '/ansible-library'
         PROJECT_DIR = 'laravel-test-project'
-        STAGING_HOST_USER = 'azureuser'   // Your Azure VM User
         SENDER_EMAIL = 'pipeworker@algowrite.com'
         STAKEHOLDER_EMAILS = 'armadushapravinda@gmail.com'
         ANSIBLE_HOST_KEY_CHECKING = 'False'
@@ -409,6 +408,24 @@ pipeline {
                             '✅ Status': 'Deployment completed successfully'
                         ]
                     )
+                }
+            }
+        }
+
+        stage('Debug SSH Connection') {
+            when {
+                branch "${MAIN_BRANCH_NAME}"
+            }
+
+            steps {
+                sshagent(credentials: ['ansible-ssh-key']) {
+                    // This will show us if the key is loaded and try to connect
+                    sh """
+                echo "Checking SSH Agent..."
+                ssh-add -l
+                echo "Attempting connection test..."
+                ssh -o StrictHostKeyChecking=no -o BatchMode=yes root@64.227.139.147 'echo SUCCESS: Connected as root' || echo 'FAILED: Could not connect'
+            """
                 }
             }
         }
