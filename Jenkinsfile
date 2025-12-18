@@ -482,12 +482,13 @@ pipeline {
                 input 'Deploy to Production?'
                 echo 'Deploying to Production...'
 
-                sh "cp -a ${env.ANSIBLE_PROJECT_PATH}/. ."
-
                 sshagent(credentials: ['ansible-ssh-key']) {
                     withCredentials([string(credentialsId: 'ansible-vault-password', variable: 'VAULT_PASS')]) {
                         sh """
                             echo \$VAULT_PASS > .vault_pass.txt
+
+                            # Debug: Verify the container can see the specific files
+                            ls -la ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}
 
                             ansible-playbook \
                                 -i ${ANSIBLE_BASE_PATH}/${PROJECT_DIR}/inventory.ini \
